@@ -176,7 +176,7 @@ public sealed class StandardAddInServer : ApplicationAddInServer
                 }
             }
 
-            Log.Info($"The Create Thread button is on {placed} ribbon(s).");
+            Log.Info($"The Modeled Threads buttons are on {placed} ribbon(s).");
         }
         catch (Exception ex)
         {
