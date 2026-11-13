@@ -70,6 +70,10 @@ Console.WriteLine("== a tube: threaded outside, then inside ==");
 Tube(app, geometry);
 
 Console.WriteLine();
+Console.WriteLine("== editing a thread that is already in the part ==");
+Edit(app, geometry);
+
+Console.WriteLine();
 Console.WriteLine("== a nut for the eye ==");
 DemoNut(app, geometry);
 
@@ -686,6 +690,217 @@ void Tube(Inventor.Application app, TransientGeometry geometry)
 /// <summary>
 /// Builds a nut and saves it, so an internal thread can be looked at.
 /// </summary>
+void Edit(Inventor.Application app, TransientGeometry geometry)
+{
+    PartDocument doc = NewPart(app);
+    PartComponentDefinition def = doc.ComponentDefinition;
+
+    // A plain 10 mm shaft, as the edit needs a surface to bite into again.
+    ExtrudeCircle(def, geometry, 5.0, 20.0, PartFeatureOperationEnum.kJoinOperation);
+
+    Face? face = FindCylinder(def, 5.0);
+    FaceProbe? probe = face is null ? null : FaceProbeReader.Probe(doc, face, geometry);
+
+    Check("the shaft's face was found for the edit", probe is not null);
+    if (probe is null)
+    {
+        doc.Close(true);
+        return;
+    }
+
+    ThreadPlan first = Plan(probe, "M10x1.25", internalThread: false, lengthMm: 0,
+        clearanceMm: 0, chamferStart: true, chamferEnd: true);
+
+    ThreadRecord record = Cut(doc, probe, first);
+    double afterFirst = Volume(def);
+
+    // ---- the record is on the features --------------------------------
+    List<object> features = ThreadMetadata.Features(def, record.ThreadId);
+    Check("the thread's features carry the record", features.Count >= 2,
+        $"{features.Count} features");
+
+    bool allReadBack = true;
+    foreach (object feature in features)
+    {
+        if (!ThreadMetadata.TryRead(feature, out ThreadRecord? read) || read is null)
+        {
+            allReadBack = false;
+            continue;
+        }
+
+        allReadBack &= read.ThreadId == record.ThreadId
+            && read.Designation == record.Designation
+            && Math.Abs(read.RadiusCm - record.RadiusCm) < 1e-6
+            && Math.Abs(read.HighCm - record.HighCm) < 1e-6
+            && read.LowEnd == record.LowEnd
+            && read.HighEnd == record.HighEnd;
+    }
+
+    Check("every feature reads its record back", allReadBack);
+
+    Face? threadFace = null;
+    foreach (SurfaceBody body in def.SurfaceBodies)
+    {
+        foreach (Face f in body.Faces)
+        {
+            if (f.SurfaceType == SurfaceTypeEnum.kBSplineSurface)
+            {
+                threadFace = f;
+                break;
+            }
+        }
+
+        if (threadFace is not null)
+        {
+            break;
+        }
+    }
+
+    Check("a face made by the thread reads the record too",
+        ThreadMetadata.TryReadFrom(threadFace, out _, out _));
+
+    // ---- edit it: a coarser thread on the same shaft ------------------
+    var updated = new ThreadRecord
+    {
+        ThreadId = record.ThreadId,
+        Designation = "M10x1.5",
+        LengthMm = 0,
+        ClearanceMm = 0,
+        Starts = 1,
+        RightHanded = true,
+        ChamferStart = true,
+        ChamferEnd = true,
+        ReverseStart = false,
+        Internal = probe.Internal,
+        AxisX = probe.Axis.X,
+        AxisY = probe.Axis.Y,
+        AxisZ = probe.Axis.Z,
+        BaseX = probe.BasePoint.X,
+        BaseY = probe.BasePoint.Y,
+        BaseZ = probe.BasePoint.Z,
+        RadiusCm = probe.RadiusCm,
+        LowCm = probe.LowCm,
+        HighCm = probe.HighCm,
+        LowEnd = probe.LowEnd,
+        HighEnd = probe.HighEnd,
+        NormalIsOutward = probe.NormalIsOutward
+    };
+
+    ThreadPlan edited = ThreadEditor.Replace(
+        app, doc, record, updated, p => Plan(p, "M10x1.5", false, 0, 0, true, true));
+
+    double afterEdit = Volume(def);
+    Check("the edit changed the thread", Math.Abs(afterEdit - afterFirst) > 0.5,
+        $"{afterFirst:0.#} -> {afterEdit:0.#} mm3");
+    Near("the edited thread has its new pitch", edited.PitchMm, 1.5, 1e-9, " mm");
+    Check("the edited thread has its new name", edited.Designation == "M10x1.5",
+        $"{first.Designation} -> {edited.Designation}");
+
+    // ---- no leftovers -------------------------------------------------
+    List<object> after = ThreadMetadata.Features(def, record.ThreadId);
+    Check("the edited thread has the same features, and no more",
+        after.Count == features.Count, $"{features.Count} -> {after.Count}");
+
+    bool renamed = true;
+    foreach (object feature in after)
+    {
+        ThreadMetadata.TryRead(feature, out ThreadRecord? read);
+        renamed &= read?.Designation == "M10x1.5";
+    }
+
+    Check("the features now carry the new size", renamed);
+    Check("nothing carries the old size",
+        after.Count(f => ThreadMetadata.NameOf(f).Contains("M10x1.25")) == 0);
+
+    // The shaft is still 10 mm across, and still threaded.
+    (double minX, double maxX, double _, double _) = Extent(def);
+    Near("the shaft is still 10 mm across after the edit", maxX - minX, 10.0, 0.05, " mm");
+    Check("the edit left thread faces", ThreadFaces(def) > 0, $"{ThreadFaces(def)} thread faces");
+
+    try
+    {
+        doc.SaveAs(@"C:\Temp\demo-edit.ipt", true);
+        Console.WriteLine("      saved C:\\Temp\\demo-edit.ipt");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("      the edited part could not be saved: " + ex.Message);
+    }
+
+    doc.Close(true);
+
+    // ---- the same on a hole: an internal thread, edited ----------------
+    PartDocument nut = NewPart(app);
+    PartComponentDefinition nutDef = nut.ComponentDefinition;
+
+    ExtrudeCircle(nutDef, geometry, 10.0, 30.0, PartFeatureOperationEnum.kJoinOperation);
+    ExtrudeCircle(nutDef, geometry, 4.25, 40.0, PartFeatureOperationEnum.kCutOperation,
+        atZ: 30.0, downwards: true);
+
+    Face? bore = FindCylinder(nutDef, 4.25);
+    FaceProbe? boreProbe = bore is null ? null : FaceProbeReader.Probe(nut, bore, geometry);
+
+    Check("the hole's face was found for the internal edit", boreProbe is not null);
+    if (boreProbe is not null)
+    {
+        ThreadPlan innerFirst = Plan(boreProbe, "M10x1.5", internalThread: true, lengthMm: 0,
+            clearanceMm: 0, chamferStart: true, chamferEnd: true);
+
+        ThreadRecord innerRecord = Cut(nut, boreProbe, innerFirst);
+        double innerBefore = Volume(nutDef);
+
+        var innerUpdated = new ThreadRecord
+        {
+            ThreadId = innerRecord.ThreadId,
+            Designation = "M10x1.25",
+            LengthMm = 0,
+            ClearanceMm = 0,
+            Starts = 1,
+            RightHanded = true,
+            ChamferStart = true,
+            ChamferEnd = true,
+            ReverseStart = false,
+            Internal = boreProbe.Internal,
+            AxisX = boreProbe.Axis.X,
+            AxisY = boreProbe.Axis.Y,
+            AxisZ = boreProbe.Axis.Z,
+            BaseX = boreProbe.BasePoint.X,
+            BaseY = boreProbe.BasePoint.Y,
+            BaseZ = boreProbe.BasePoint.Z,
+            RadiusCm = boreProbe.RadiusCm,
+            LowCm = boreProbe.LowCm,
+            HighCm = boreProbe.HighCm,
+            LowEnd = boreProbe.LowEnd,
+            HighEnd = boreProbe.HighEnd,
+            NormalIsOutward = boreProbe.NormalIsOutward
+        };
+
+        ThreadPlan innerEdited = ThreadEditor.Replace(
+            app, nut, innerRecord, innerUpdated,
+            p => Plan(p, "M10x1.25", internalThread: true, lengthMm: 0,
+                clearanceMm: 0, chamferStart: true, chamferEnd: true));
+
+        double innerAfter = Volume(nutDef);
+        Check("the internal edit changed the thread", Math.Abs(innerAfter - innerBefore) > 0.5,
+            $"{innerBefore:0.#} -> {innerAfter:0.#} mm3");
+
+        List<object> innerFeatures = ThreadMetadata.Features(nutDef, innerRecord.ThreadId);
+        Check("the internal edit left one thread, with the same features",
+            innerFeatures.Count == 2, $"{innerFeatures.Count} features");
+        Check("the hole is still threaded after the edit", ThreadFaces(nutDef) > 0,
+            $"{ThreadFaces(nutDef)} thread faces");
+
+        (double nutMinX, double nutMaxX, double _, double _) = Extent(nutDef);
+        Near("the nut is still 20 mm across after the internal edit",
+            nutMaxX - nutMinX, 20.0, 0.05, " mm");
+
+        Check("the internal edit has its new pitch", innerEdited.PitchMm > 1.2 && innerEdited.PitchMm < 1.3,
+            $"{innerEdited.Designation}");
+    }
+
+    nut.Close(true);
+}
+
 void DemoNut(Inventor.Application app, TransientGeometry geometry)
 {
     PartDocument doc = NewPart(app);
@@ -836,15 +1051,51 @@ double EndZ(FaceProbe probe, bool low)
     return (probe.BasePoint.Z + probe.Axis.Z * t) * 10.0;
 }
 
-void Cut(PartDocument doc, FaceProbe probe, ThreadPlan plan)
+ThreadRecord MakeRecord(
+    ThreadPlan plan,
+    FaceProbe probe,
+    double lengthMm = 0,
+    bool chamferStart = true,
+    bool chamferEnd = true)
 {
+    return new ThreadRecord
+    {
+        ThreadId = Guid.NewGuid().ToString("N"),
+        Designation = plan.Designation,
+        LengthMm = lengthMm,
+        ClearanceMm = plan.ClearanceMm,
+        Starts = plan.Starts,
+        RightHanded = plan.RightHanded,
+        ChamferStart = chamferStart,
+        ChamferEnd = chamferEnd,
+        ReverseStart = false,
+        Internal = probe.Internal,
+        AxisX = probe.Axis.X,
+        AxisY = probe.Axis.Y,
+        AxisZ = probe.Axis.Z,
+        BaseX = probe.BasePoint.X,
+        BaseY = probe.BasePoint.Y,
+        BaseZ = probe.BasePoint.Z,
+        RadiusCm = probe.RadiusCm,
+        LowCm = probe.LowCm,
+        HighCm = probe.HighCm,
+        LowEnd = probe.LowEnd,
+        HighEnd = probe.HighEnd,
+        NormalIsOutward = probe.NormalIsOutward
+    };
+}
+
+ThreadRecord Cut(PartDocument doc, FaceProbe probe, ThreadPlan plan, ThreadRecord? record = null)
+{
+    record ??= MakeRecord(plan, probe);
+
     Transaction transaction = app.TransactionManager.StartTransaction(
         doc.InventorDocument, $"Test thread {plan.Designation}");
 
     try
     {
         var builder = new ThreadBuilder(app, doc, probe);
-        builder.Build(plan);
+        builder.Build(plan, record);
 
         try
         {
@@ -862,7 +1113,7 @@ void Cut(PartDocument doc, FaceProbe probe, ThreadPlan plan)
                 // the message above is the useful one
             }
 
-            return;
+            return record;
         }
     }
     catch (Exception ex)
@@ -878,6 +1129,8 @@ void Cut(PartDocument doc, FaceProbe probe, ThreadPlan plan)
 
         Check($"the thread '{plan.Designation}' was cut", false, ex.ToString());
     }
+
+    return record;
 }
 
 PartDocument NewPart(Inventor.Application app)

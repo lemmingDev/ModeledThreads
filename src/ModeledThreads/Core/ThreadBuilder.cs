@@ -15,6 +15,9 @@ public sealed class ThreadBuilder
     private readonly PartDocument _document;
     private readonly FaceProbe _probe;
 
+    /// <summary>The record stamped on every feature of the thread being built.</summary>
+    private ThreadRecord? _record;
+
     /// <summary>The names of the features the last build made.</summary>
     public List<string> CreatedFeatures { get; } = new();
 
@@ -26,11 +29,17 @@ public sealed class ThreadBuilder
     }
 
     /// <summary>Builds the thread.</summary>
-    public void Build(ThreadPlan plan)
+    /// <param name="plan">The thread to cut.</param>
+    /// <param name="record">
+    /// The inputs the plan came from. It is written onto the features, so the
+    /// dialog can be opened on them again later.
+    /// </param>
+    public void Build(ThreadPlan plan, ThreadRecord record)
     {
         PartComponentDefinition definition = _document.ComponentDefinition;
         TransientGeometry geometry = _app.TransientGeometry;
 
+        _record = record;
         UnitVector axis = _probe.Axis;
         UnitVector sweep = geometry.CreateUnitVector(
             axis.X * plan.Direction, axis.Y * plan.Direction, axis.Z * plan.Direction);
@@ -88,6 +97,7 @@ public sealed class ThreadBuilder
                 !plan.RightHanded));
 
             Stage("coil name", () => coil.Name = $"Modeled Thread {plan.Designation}" + (plan.Starts > 1 ? $" ({start + 1})" : string.Empty));
+            ThreadMetadata.Write(coil, record);
             CreatedFeatures.Add(coil.Name);
         }
 
@@ -193,6 +203,11 @@ public sealed class ThreadBuilder
             _document.ComponentDefinition.Features.RevolveFeatures.AddFull(
                 profile, workAxis, PartFeatureOperationEnum.kCutOperation));
         revolve.Name = $"Modeled Thread Lead-in {plan.Designation}";
+        if (_record is not null)
+        {
+            ThreadMetadata.Write(revolve, _record);
+        }
+
         CreatedFeatures.Add(revolve.Name);
 
         Log.Info($"Lead-in cone cut at the start: depth {tip.DepthMm:0.###} mm.");
@@ -245,6 +260,11 @@ public sealed class ThreadBuilder
             _document.ComponentDefinition.Features.RevolveFeatures.AddFull(
                 profile, workAxis, PartFeatureOperationEnum.kCutOperation));
         revolve.Name = $"Modeled Thread Relief {plan.Designation}";
+        if (_record is not null)
+        {
+            ThreadMetadata.Write(revolve, _record);
+        }
+
         CreatedFeatures.Add(revolve.Name);
 
         Log.Info(

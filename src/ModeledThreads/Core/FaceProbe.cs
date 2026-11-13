@@ -45,6 +45,27 @@ public sealed class FaceProbe
 
     /// <summary>How the two ends meet, in the order the axis runs.</summary>
     public ThreadEndKind EndAt(int side) => side == 0 ? LowEnd : HighEnd;
+
+    /// <summary>
+    /// The face a thread was cut on, rebuilt from what the thread recorded. An
+    /// edit does not need to find the face again in the model: the thread's
+    /// cut is placed by geometry, and the record has all of it.
+    /// </summary>
+    public static FaceProbe FromRecord(ThreadRecord record, TransientGeometry geometry)
+    {
+        return new FaceProbe
+        {
+            Axis = geometry.CreateUnitVector(record.AxisX, record.AxisY, record.AxisZ),
+            BasePoint = geometry.CreatePoint(record.BaseX, record.BaseY, record.BaseZ),
+            RadiusCm = record.RadiusCm,
+            LowCm = record.LowCm,
+            HighCm = record.HighCm,
+            Internal = record.Internal,
+            LowEnd = record.LowEnd,
+            HighEnd = record.HighEnd,
+            NormalIsOutward = record.NormalIsOutward
+        };
+    }
 }
 
 /// <summary>

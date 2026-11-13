@@ -24,6 +24,8 @@ cut into the solid.
 * **Multi-start, left or right hand, with clearance.** 1 to 8 starts, a lead of
   pitch × starts, and a per-thread clearance that takes material off the flanks
   as well as the root.
+* **Editable.** Double-click the thread — in the browser or on the model — and
+  the same dialog opens on it, ready to cut a different size in place.
 
 Everything is a normal Inventor feature: the thread is a coil cut plus two
 revolved cuts, all named, all editable, all visible in the browser.
@@ -96,9 +98,37 @@ so and stays open. Nothing is cut until it can be cut properly.
   <img src="docs/dialog.png" width="420" alt="The Create Thread dialog, filled in for a hole">
 </p>
 
+## Editing a thread
+
+A thread made this way is not a one-shot: it can be opened and changed.
+
+* **Double-click it.** In the browser, double-click the thread's own row (or
+  double-click the thread on the model). The plugin's dialog opens instead of
+  Inventor's coil editor, filled in with what the thread was made with.
+* **Or select it and press Edit Thread** on the *Modeled Threads* tab. If
+  nothing is selected, Inventor asks for the thread.
+
+Change whatever needs changing — size, length, clearance, starts, hand, end
+treatments, direction — and press **Apply**. The dialog looks exactly like the
+one that made the thread:
+
+<p align="center">
+  <img src="docs/edit-dialog.png" width="420" alt="The Edit a Modelled Thread dialog, filled in from the thread in the model">
+</p>
+
+The old thread's features are taken out and the new ones are cut in their place,
+all in one transaction: if anything fails, the thread is left exactly as it was
+and the dialog says why. The new features keep the thread's identity, so the
+same gesture edits it again.
+
+The dialog knows what the thread was made with because each of its features
+carries the inputs as a small text attribute (`ModeledThreads` / `Thread`). The
+attribute is plain data: it costs nothing in the model and nothing in the file,
+and it is only read when the plugin is asked to edit.
+
 ## What gets built
 
-A thread is three features:
+A thread is two or three features:
 
 | Feature | What it is |
 |---|---|
@@ -109,6 +139,10 @@ A thread is three features:
 The planes and axes the cuts are built on are made as **construction** features,
 so they never appear in the browser or across the part: the only things the
 thread leaves behind are its own features.
+
+Each of those features carries the thread's inputs in an attribute set named
+`ModeledThreads`, attribute `Thread`. That is what the Edit command reads, and it
+is why a thread can be changed without keeping anything else around.
 
 The profile is the standard's, not an approximation: for ISO metric it is the
 ISO 68-1 basic profile (H = P√3/2, depth 5H/8, flat P/8 at the crest and P/4 at
@@ -128,6 +162,25 @@ printed or a worn thread actually fit.
 | Shoulder | The one-pitch relief, so the last turn ends before the face |
 | Closed (hole bottom) | The thread stops one pitch short of the bottom, so a plain band of wall is left there |
 | Inside (runs into another feature) | Treated as a shoulder |
+
+## Opening the part without the add-in
+
+A part with a modelled thread is an ordinary Inventor part. Everything the
+thread is made of is a normal coil cut and normal revolved cuts; the attribute
+that records the inputs is inert text on those features, like a part number.
+
+So on a machine without the plugin the part opens, rebuilds, measures, saves and
+prints exactly as it did here. The thread is still there, and Inventor's own
+tools still work on it: double-clicking it opens Inventor's coil editor, and the
+coil and the end cuts can be edited, suppressed or deleted like any others.
+What is missing is only the plugin's own layer — the *Modeled Threads* tab, the
+dialog that knows the standard's size, and the one-gesture re-cut with a
+different size. Nothing is lost by saving again without the plugin; the recorded
+inputs stay in the file for the next machine that has it.
+
+The one thing not to do is delete the thread's features by hand and expect the
+record to be cleaned up with it: it goes with the features, which is the point —
+but the *part* is fine either way.
 
 ## Thread standards
 
@@ -211,12 +264,20 @@ out at its mouth while its bottom stays a whole disk with a plain band of wall
 above it. A tube is threaded twice, outside and then inside, and the checks hold
 the wall between the two cuts.
 
-70 checks, and it saves `C:\Temp\demo-plain.ipt` (a clean shaft),
+It also edits: a thread is cut, its record is read back from every feature and
+from a face the thread made, and then the thread is replaced with a different
+size through the same code the dialog uses. The checks hold the volume change,
+that no feature of the old size is left, and that the same thread — same id, same
+number of features — is the only one in the part. That is done twice: once on a
+shaft and once in a hole, for an internal thread.
+
+88 checks, and it saves `C:\Temp\demo-plain.ipt` (a clean shaft),
 `C:\Temp\demo-nut-plain.ipt` (a clean hole), `C:\Temp\demo-blind-plain.ipt` (a
 clean blind hole), `C:\Temp\demo-tube-plain.ipt` (a clean tube),
 `C:\Temp\demo-bolt.ipt` (a threaded shaft), `C:\Temp\demo-nut.ipt` (a threaded
-nut) and `C:\Temp\demo-tube.ipt` (threaded inside and out) so the result can be
-looked at.
+nut), `C:\Temp\demo-tube.ipt` (threaded inside and out) and
+`C:\Temp\demo-edit.ipt` (a shaft whose thread was edited in place) so the result
+can be looked at.
 
 `tools/vm` holds the scripts used to drive all of this inside a Windows VM from
 the host: running the harness in the user's desktop session, opening a part,
@@ -243,9 +304,11 @@ installer.
 | `Core/ThreadCatalog.cs` | Size tables, designation parsing, tap drills |
 | `Core/ThreadPlan.cs` | Ends, lead-in, relief, turn volume — the plan for one thread |
 | `Core/FaceProbe.cs` | Reading a face: axis, radius, extent, inside or outside, its ends |
+| `Core/ThreadRecord.cs` | The inputs a thread was made with, and the attribute that carries them |
 | `Core/ThreadBuilder.cs` | The Inventor features: sketch, coil cut, revolve cuts |
-| `UI/CreateThreadForm.cs` | The dialog |
-| `StandardAddInServer.cs` | Ribbon, face picking, command entry point |
+| `Core/ThreadEditor.cs` | Finding a thread, taking it out and cutting it again |
+| `UI/CreateThreadForm.cs` | The dialog, in create and edit mode |
+| `StandardAddInServer.cs` | Ribbon, face picking, command entry point, double-click |
 | `Compatibility/CompilerFeatures.cs` | The few newer C# features .NET Framework 4.8 lacks |
 
 The split matters: everything above `ThreadBuilder.cs` is plain maths with no

@@ -16,12 +16,15 @@ namespace ModeledThreads;
 public sealed class StandardAddInServer : ApplicationAddInServer
 {
     private const string ButtonInternalName = "ModeledThreads.Create";
+    private const string EditInternalName = "ModeledThreads.Edit";
     private const string TabInternalName = "ModeledThreads.Tab";
     private const string PanelInternalName = "ModeledThreads.Panel";
 
     private Inventor.Application? _app;
     private ButtonDefinition? _button;
+    private ButtonDefinition? _editButton;
     private RibbonTab? _tab;
+    private bool _editing;
 
     public object Automation => null!;
 
@@ -35,6 +38,10 @@ public sealed class StandardAddInServer : ApplicationAddInServer
             if (firstTime)
             {
                 BuildRibbon();
+
+                // Double-clicking a thread in the model opens the same dialog,
+                // as editing any other feature would.
+                _app.CommandManager.UserInputEvents.OnDoubleClick += UserInputEvents_OnDoubleClick;
             }
         }
         catch (Exception ex)
@@ -47,7 +54,20 @@ public sealed class StandardAddInServer : ApplicationAddInServer
     {
         try
         {
+            if (_app is not null)
+            {
+                try
+                {
+                    _app.CommandManager.UserInputEvents.OnDoubleClick -= UserInputEvents_OnDoubleClick;
+                }
+                catch
+                {
+                    // Inventor is closing; there is nothing to unhook.
+                }
+            }
+
             _button = null;
+            _editButton = null;
             _tab = null;
             _app = null;
         }
@@ -68,6 +88,7 @@ public sealed class StandardAddInServer : ApplicationAddInServer
         try
         {
             _button = null;
+            _editButton = null;
             _tab = null;
             _app = null;
         }
@@ -109,7 +130,24 @@ public sealed class StandardAddInServer : ApplicationAddInServer
                     ButtonDisplayEnum.kDisplayTextInLearningMode);
             }
 
+            ButtonDefinition? editDefinition = FindDefinition(definitions, EditInternalName);
+            if (editDefinition is null)
+            {
+                editDefinition = definitions.AddButtonDefinition(
+                    "Edit Thread",
+                    EditInternalName,
+                    CommandTypesEnum.kEditMaskCmdType,
+                    Globals.ClientId,
+                    "Changes a thread that is already in the model.",
+                    "Opens the thread dialog on a modelled thread, so its size, "
+                    + "length, clearance and end treatments can be changed.",
+                    ButtonIcons.ThreadIcon(),
+                    ButtonIcons.ThreadIcon(),
+                    ButtonDisplayEnum.kDisplayTextInLearningMode);
+            }
+
             ButtonDefinition button = definition;
+            ButtonDefinition editButton = editDefinition;
 
             // The handler is attached to the definition object itself, so the
             // add-in has to keep hold of it: let it be collected and the
@@ -120,13 +158,19 @@ public sealed class StandardAddInServer : ApplicationAddInServer
                 button.OnExecute += (context) => OnCreateThread();
             }
 
+            if (_editButton is null)
+            {
+                _editButton = editButton;
+                editButton.OnExecute += (context) => OnEditThread(null);
+            }
+
             // Inventor keeps one ribbon per environment: one with no document
             // open, one for a part, one for an assembly and so on. The tab has to
             // go on every one of them, or it vanishes the moment a document opens.
             int placed = 0;
             foreach (Ribbon ribbon in _app.UserInterfaceManager.Ribbons)
             {
-                if (EnsureTab(ribbon, button))
+                if (EnsureTab(ribbon, button, editButton))
                 {
                     placed++;
                 }
@@ -140,8 +184,8 @@ public sealed class StandardAddInServer : ApplicationAddInServer
         }
     }
 
-    /// <summary>Puts the tab, its panel and the button on one ribbon.</summary>
-    private bool EnsureTab(Ribbon ribbon, ButtonDefinition button)
+    /// <summary>Puts the tab, its panel and the buttons on one ribbon.</summary>
+    private bool EnsureTab(Ribbon ribbon, ButtonDefinition button, ButtonDefinition editButton)
     {
         try
         {
@@ -161,17 +205,28 @@ public sealed class StandardAddInServer : ApplicationAddInServer
                 panel = panels.Add("Threads", PanelInternalName, Globals.ClientId);
             }
 
-            // Only one copy of the button on the panel.
+            // Only one copy of each button on the panel.
+            bool hasCreate = false;
+            bool hasEdit = false;
             foreach (CommandControl control in panel.CommandControls)
             {
-                if (control.ControlDefinition is ButtonDefinition existing
-                    && existing.InternalName == ButtonInternalName)
+                if (control.ControlDefinition is ButtonDefinition existing)
                 {
-                    return true;
+                    hasCreate |= existing.InternalName == ButtonInternalName;
+                    hasEdit |= existing.InternalName == EditInternalName;
                 }
             }
 
-            panel.CommandControls.AddButton(button, true, true);
+            if (!hasCreate)
+            {
+                panel.CommandControls.AddButton(button, true, true);
+            }
+
+            if (!hasEdit)
+            {
+                panel.CommandControls.AddButton(editButton, true, true);
+            }
+
             return true;
         }
         catch (Exception ex)
@@ -287,6 +342,159 @@ public sealed class StandardAddInServer : ApplicationAddInServer
                 "Modeled Threads",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
+        }
+    }
+
+    /// <summary>
+    /// Opens the thread dialog on a thread that is already in the model: the one
+    /// selected, or one the user is asked for.
+    /// </summary>
+    private void OnEditThread(ThreadRecord? thread)
+    {
+        Inventor.Application? app = _app;
+        if (app is null || _editing)
+        {
+            return;
+        }
+
+        _editing = true;
+
+        try
+        {
+            if (app.ActiveDocument is not PartDocument part)
+            {
+                MessageBox.Show(
+                    "Open the part that has the thread in it.",
+                    "Modeled Threads",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            ThreadRecord? record = thread ?? ThreadInSelection(part);
+
+            if (record is null)
+            {
+                object? picked = app.CommandManager.Pick(
+                    SelectionFilterEnum.kPartFeatureFilter,
+                    "Select a modelled thread. Press Escape to stop.");
+
+                if (!ThreadMetadata.TryReadFrom(picked, out record, out _) || record is null)
+                {
+                    Log.Info("Edit Thread: nothing was picked.");
+                    return;
+                }
+            }
+
+            // The dialog opens on what the thread was made with; the surface it
+            // was cut into is checked again when the new numbers are applied.
+            FaceProbe probe = FaceProbe.FromRecord(record, app.TransientGeometry);
+
+            Log.Info($"Editing the thread '{record.Designation}'.");
+            using var form = new CreateThreadForm(app, part, probe, record);
+            form.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("The edit command failed.", ex);
+            MessageBox.Show(
+                $"The thread could not be opened for editing: {ex.Message}",
+                "Modeled Threads",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+        finally
+        {
+            _editing = false;
+        }
+    }
+
+    /// <summary>The thread that something in the selection belongs to, if any.</summary>
+    private static ThreadRecord? ThreadInSelection(PartDocument part)
+    {
+        try
+        {
+            SelectSet selection = part.SelectSet;
+            for (int i = 1; i <= selection.Count; i++)
+            {
+                if (ThreadMetadata.TryReadFrom(selection[i], out ThreadRecord? record, out _))
+                {
+                    Log.Info("Using the thread that was already selected.");
+                    return record;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not read the selection: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// A double-click on a thread — in the browser or on its geometry — opens the
+    /// thread dialog instead of Inventor's own editor for the coil.
+    /// </summary>
+    private void UserInputEvents_OnDoubleClick(
+        ObjectsEnumerator selectedEntities,
+        SelectionDeviceEnum selectionDevice,
+        MouseButtonEnum button,
+        ShiftStateEnum shiftKeys,
+        Inventor.Point modelPosition,
+        Point2d viewPosition,
+        Inventor.View view,
+        NameValueMap additionalInfo,
+        out HandlingCodeEnum handlingCode)
+    {
+        handlingCode = HandlingCodeEnum.kEventNotHandled;
+
+        try
+        {
+            int count = 0;
+            try
+            {
+                count = selectedEntities?.Count ?? 0;
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"The double-click's entities could not be read: {ex.Message}");
+                return;
+            }
+
+            for (int i = 1; i <= count; i++)
+            {
+                if (!ThreadMetadata.TryReadFrom(selectedEntities[i], out ThreadRecord? record, out object? feature))
+                {
+                    continue;
+                }
+
+                Log.Info($"Double-click on the thread '{record!.Designation}' ({ThreadMetadata.NameOf(feature)}).");
+                handlingCode = HandlingCodeEnum.kEventHandled;
+
+                // The dialog is opened once Inventor has finished with the
+                // double-click, so the click is not caught by the dialog's own
+                // message loop.
+                ThreadRecord opening = record;
+
+                // A one-shot timer lets Inventor finish dispatching the click
+                // before a modal dialog is opened from inside its event: the
+                // dialog's own loop then starts on a quiet thread.
+                var timer = new System.Windows.Forms.Timer { Interval = 10 };
+                timer.Tick += (_, _) =>
+                {
+                    timer.Stop();
+                    timer.Dispose();
+                    OnEditThread(opening);
+                };
+                timer.Start();
+
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"The double-click could not be handled: {ex.Message}");
         }
     }
 

@@ -43,6 +43,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Late binding to the feature types, which the interop gives no shared base. -->
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The reference assemblies for .NET Framework 4.8, so the add-in can be
          built on any machine, not only on Windows. -->
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="All" />

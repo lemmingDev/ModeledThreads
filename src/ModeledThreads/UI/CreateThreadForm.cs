@@ -14,6 +14,9 @@ public sealed class CreateThreadForm : Form
     private readonly Inventor.PartDocument _document;
     private readonly FaceProbe _probe;
 
+    /// <summary>The thread being edited, or null when one is being made.</summary>
+    private readonly ThreadRecord? _existing;
+
     private readonly Label _faceLabel = new();
     private readonly Label _sizeLabel = new();
     private readonly Label _warningLabel = new();
@@ -32,19 +35,51 @@ public sealed class CreateThreadForm : Form
     private readonly Button _otherFaceButton = new();
 
     public CreateThreadForm(Inventor.Application app, Inventor.PartDocument document, FaceProbe probe)
+        : this(app, document, probe, null)
+    {
+    }
+
+    /// <summary>
+    /// Opens the dialog on a thread that is already in the model: the fields come
+    /// from what the thread was made with, and Apply cuts it again.
+    /// </summary>
+    public CreateThreadForm(
+        Inventor.Application app,
+        Inventor.PartDocument document,
+        FaceProbe probe,
+        ThreadRecord? existing)
     {
         _app = app;
         _document = document;
         _probe = probe;
+        _existing = existing;
 
         BuildUi();
         LoadForms();
-        SelectSuggestedSize();
+    }
+
+    /// <summary>
+    /// Fills the fields once the window is really there. A combo box raises its
+    /// selection event when its handle is created, so anything set in the
+    /// constructor would be overwritten by that first event.
+    /// </summary>
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+
+        if (_existing is null)
+        {
+            SelectSuggestedSize();
+        }
+        else
+        {
+            ApplyRecord(_existing);
+        }
     }
 
     private void BuildUi()
     {
-        Text = "Create a Modelled Thread";
+        Text = _existing is null ? "Create a Modelled Thread" : "Edit a Modelled Thread";
         Name = "CreateThreadForm";
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -157,7 +192,7 @@ public sealed class CreateThreadForm : Form
             WrapContents = false
         };
 
-        _createButton.Text = "Create Thread";
+        _createButton.Text = _existing is null ? "Create Thread" : "Apply";
         _createButton.AutoSize = true;
         _createButton.Padding = new Padding(16, 3, 16, 3);
         _createButton.Click += CreateButtonOnClick;
@@ -178,7 +213,12 @@ public sealed class CreateThreadForm : Form
 
         buttons.Controls.Add(_closeButton);
         buttons.Controls.Add(_createButton);
-        buttons.Controls.Add(_otherFaceButton);
+
+        // A new thread can be started on another face; an edit stays on its own.
+        if (_existing is null)
+        {
+            buttons.Controls.Add(_otherFaceButton);
+        }
 
         Controls.Add(outer);
         Controls.Add(buttons);
@@ -279,6 +319,49 @@ public sealed class CreateThreadForm : Form
         }
     }
 
+    /// <summary>Fills the dialog in from a thread that is already in the model.</summary>
+    private void ApplyRecord(ThreadRecord record)
+    {
+        if (ThreadCatalog.TryParse(record.Designation, out ThreadSize size, out _))
+        {
+            foreach (FormItem item in _formCombo.Items.OfType<FormItem>())
+            {
+                if (item.Form == size.Form)
+                {
+                    _formCombo.SelectedItem = item;
+                    break;
+                }
+            }
+
+            int index = _designationCombo.Items.IndexOf(record.Designation);
+            if (index >= 0)
+            {
+                _designationCombo.SelectedIndex = index;
+            }
+            else
+            {
+                _designationCombo.Text = record.Designation;
+            }
+        }
+
+        _lengthText.Text = record.LengthMm > 0
+            ? record.LengthMm.ToString("0.###", CultureInfo.InvariantCulture)
+            : string.Empty;
+
+        _clearanceText.Text = record.ClearanceMm.ToString("0.###", CultureInfo.InvariantCulture);
+
+        _starts.Value = Math.Max(_starts.Minimum, Math.Min(_starts.Maximum, record.Starts));
+
+        _rightHand.Checked = record.RightHanded;
+        _leftHand.Checked = !record.RightHanded;
+
+        _chamferStart.Checked = record.ChamferStart;
+        _chamferEnd.Checked = record.ChamferEnd;
+        _reverse.Checked = record.ReverseStart;
+
+        UpdateSizeLabel();
+    }
+
     private bool TryGetSize(out ThreadSize size)
     {
         size = default;
@@ -367,39 +450,61 @@ public sealed class CreateThreadForm : Form
         }
 
         int starts = (int)_starts.Value;
-        int startSide = ChooseStartSide();
 
-        var options = new ThreadPlanOptions
+        var record = new ThreadRecord
         {
-            Form = size.Form,
+            ThreadId = _existing?.ThreadId ?? Guid.NewGuid().ToString("N"),
             Designation = _designationCombo.Text.Trim(),
-            MajorMm = size.MajorMm,
-            PitchMm = size.PitchMm,
-            LeadMm = size.PitchMm * starts,
-            Internal = _probe.Internal,
-            ClearanceMm = clearance,
-            RightHanded = _rightHand.Checked,
-            Starts = starts,
-            FaceRadiusMm = _probe.RadiusMm,
-            FaceLowMm = _probe.LowCm * 10.0,
-            FaceHighMm = _probe.HighCm * 10.0,
-            StartSide = startSide,
             LengthMm = length,
-            LowEndKind = _probe.LowEnd,
-            HighEndKind = _probe.HighEnd,
+            ClearanceMm = clearance,
+            Starts = starts,
+            RightHanded = _rightHand.Checked,
             ChamferStart = _chamferStart.Checked,
-            ChamferEnd = _chamferEnd.Checked
+            ChamferEnd = _chamferEnd.Checked,
+            ReverseStart = _reverse.Checked,
+            Internal = _probe.Internal,
+            AxisX = _probe.Axis.X,
+            AxisY = _probe.Axis.Y,
+            AxisZ = _probe.Axis.Z,
+            BaseX = _probe.BasePoint.X,
+            BaseY = _probe.BasePoint.Y,
+            BaseZ = _probe.BasePoint.Z,
+            RadiusCm = _probe.RadiusCm,
+            LowCm = _probe.LowCm,
+            HighCm = _probe.HighCm,
+            LowEnd = _probe.LowEnd,
+            HighEnd = _probe.HighEnd,
+            NormalIsOutward = _probe.NormalIsOutward
         };
 
-        ThreadPlan plan;
-        try
+        // The plan is worked out from the face as it is read now, and again from
+        // the re-read face when an edit has taken the old thread out.
+        ThreadPlan MakePlan(FaceProbe probe)
         {
-            plan = ThreadPlanBuilder.Build(options);
-        }
-        catch (ThreadPlanException ex)
-        {
-            _warningLabel.Text = ex.Message;
-            return;
+            int automatic = ChooseStartSide(probe);
+            int side = record.ReverseStart ? 1 - automatic : automatic;
+
+            return ThreadPlanBuilder.Build(new ThreadPlanOptions
+            {
+                Form = size.Form,
+                Designation = record.Designation,
+                MajorMm = size.MajorMm,
+                PitchMm = size.PitchMm,
+                LeadMm = size.PitchMm * starts,
+                Internal = probe.Internal,
+                ClearanceMm = clearance,
+                RightHanded = record.RightHanded,
+                Starts = starts,
+                FaceRadiusMm = probe.RadiusMm,
+                FaceLowMm = probe.LowCm * 10.0,
+                FaceHighMm = probe.HighCm * 10.0,
+                StartSide = side,
+                LengthMm = length,
+                LowEndKind = probe.LowEnd,
+                HighEndKind = probe.HighEnd,
+                ChamferStart = record.ChamferStart,
+                ChamferEnd = record.ChamferEnd
+            });
         }
 
         Cursor = Cursors.WaitCursor;
@@ -407,42 +512,59 @@ public sealed class CreateThreadForm : Form
 
         try
         {
-            Inventor.Transaction transaction = _app.TransactionManager.StartTransaction(
-                _document.InventorDocument, $"Create thread {plan.Designation}");
+            ThreadPlan plan;
 
-            try
+            if (_existing is null)
             {
-                var builder = new ThreadBuilder(_app, _document, _probe);
-                builder.Build(plan);
+                plan = MakePlan(_probe);
 
-                transaction.End();
-            }
-            catch (Exception ex)
-            {
+                Inventor.Transaction transaction = _app.TransactionManager.StartTransaction(
+                    _document.InventorDocument, $"Create thread {plan.Designation}");
+
                 try
                 {
-                    transaction.Abort();
+                    var builder = new ThreadBuilder(_app, _document, _probe);
+                    builder.Build(plan, record);
+
+                    transaction.End();
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // the message below is the useful one
+                    try
+                    {
+                        transaction.Abort();
+                    }
+                    catch
+                    {
+                        // the message below is the useful one
+                    }
+
+                    Log.Error($"Could not create the thread '{plan.Designation}'.", ex);
+                    _warningLabel.Text = $"The thread could not be cut: {ex.Message}";
+                    return;
                 }
 
-                Log.Error($"Could not create the thread '{plan.Designation}'.", ex);
-                _warningLabel.Text = $"The thread could not be cut: {ex.Message}";
-                return;
+                Log.Info(
+                    $"Thread '{plan.Designation}' created: {plan.Turns:0.##} turns, " +
+                    $"{plan.SweepLengthMm:0.##} mm, clearance {plan.ClearanceMm:0.##} mm.");
             }
+            else
+            {
+                // The old features come out and the thread is cut again in their
+                // place, all in one transaction.
+                plan = ThreadEditor.Replace(_app, _document, _existing, record, MakePlan);
 
-            Log.Info(
-                $"Thread '{plan.Designation}' created: {plan.Turns:0.##} turns, " +
-                $"{plan.SweepLengthMm:0.##} mm, clearance {plan.ClearanceMm:0.##} mm.");
+                Log.Info(
+                    $"Thread '{plan.Designation}' edited: {plan.Turns:0.##} turns, " +
+                    $"{plan.SweepLengthMm:0.##} mm, clearance {plan.ClearanceMm:0.##} mm.");
+            }
 
             // The model is its own confirmation: only a warning is worth a box
             // to dismiss.
             if (plan.Warning.Length > 0)
             {
                 MessageBox.Show(
-                    $"The thread was created.\n\n{plan.Warning}",
+                    $"The thread was {(_existing is null ? "created" : "changed")}.\n\n{plan.Warning}",
                     "Modeled Threads",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
@@ -450,6 +572,15 @@ public sealed class CreateThreadForm : Form
 
             DialogResult = DialogResult.OK;
             Close();
+        }
+        catch (ThreadPlanException ex)
+        {
+            _warningLabel.Text = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Could not {(_existing is null ? "create" : "edit")} the thread.", ex);
+            _warningLabel.Text = $"The thread could not be cut: {ex.Message}";
         }
         finally
         {
@@ -462,26 +593,22 @@ public sealed class CreateThreadForm : Form
     /// Which end of the face the thread starts at: the free one where there is
     /// only one, unless the user asks for the other.
     /// </summary>
-    private int ChooseStartSide()
+    private static int ChooseStartSide(FaceProbe probe)
     {
-        bool lowFree = _probe.LowEnd == ThreadEndKind.Free;
-        bool highFree = _probe.HighEnd == ThreadEndKind.Free;
+        bool lowFree = probe.LowEnd == ThreadEndKind.Free;
+        bool highFree = probe.HighEnd == ThreadEndKind.Free;
 
-        int side;
         if (lowFree && !highFree)
         {
-            side = 0;
-        }
-        else if (highFree && !lowFree)
-        {
-            side = 1;
-        }
-        else
-        {
-            side = 0;
+            return 0;
         }
 
-        return _reverse.Checked ? 1 - side : side;
+        if (highFree && !lowFree)
+        {
+            return 1;
+        }
+
+        return 0;
     }
 
     protected override void Dispose(bool disposing)
