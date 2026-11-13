@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Addin Type="Standard">
+  <ClassId>{b401cf90-402b-4d9e-8d04-9152e75e5017}</ClassId>
+  <ClientId>{b401cf90-402b-4d9e-8d04-9152e75e5017}</ClientId>
+  <DisplayName>Modeled Threads</DisplayName>
+  <Description>Cuts real modelled threads into cylindrical faces, using the standards' own thread profiles.</Description>
+  <Assembly>ModeledThreads.dll</Assembly>
+  <LoadOnStartUp>1</LoadOnStartUp>
+  <UserUnloadable>1</UserUnloadable>
+  <Hidden>0</Hidden>
+  <SupportedSoftwareVersionGreaterThan>30..</SupportedSoftwareVersionGreaterThan>
+  <SupportedSoftwareVersionLessThan>32..</SupportedSoftwareVersionLessThan>
+  <DataVersion>1</DataVersion>
+  <UserInterfaceVersion>1</UserInterfaceVersion>
+</Addin>

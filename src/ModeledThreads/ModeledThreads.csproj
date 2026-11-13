@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Inventor 2027 loads .NET Framework 4.8 add-ins (ClrAddinLoader48) as well
+         as .NET 10 ones. The .NET Framework is on every Windows machine already,
+         so the add-in needs no runtime of its own. -->
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <OutputType>Library</OutputType>
+    <AssemblyName>ModeledThreads</AssemblyName>
+    <RootNamespace>ModeledThreads</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <DebugType>embedded</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Inventor version whose API the add-in is compiled against (2025, 2026 or 2027). -->
+    <InventorVersion Condition="'$(InventorVersion)' == ''">2027</InventorVersion>
+    <!-- Reference the exact interop assembly from refs/<version>, or point
+         InventorInteropDir at an installed Inventor's Bin folder. Without either,
+         the Autodesk.Inventor.Sdk NuGet package is used. -->
+    <InventorInteropDir Condition="'$(InventorInteropDir)' == '' and Exists('$(MSBuildThisFileDirectory)../../refs/$(InventorVersion)/Autodesk.Inventor.Interop.dll')">$(MSBuildThisFileDirectory)../../refs/$(InventorVersion)</InventorInteropDir>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(InventorInteropDir)' != ''">
+    <Reference Include="Autodesk.Inventor.Interop">
+      <HintPath>$(InventorInteropDir)/Autodesk.Inventor.Interop.dll</HintPath>
+      <Private>false</Private>
+      <EmbedInteropTypes>false</EmbedInteropTypes>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(InventorInteropDir)' == ''">
+    <PackageReference Include="Autodesk.Inventor.Sdk" Version="2.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The reference assemblies for .NET Framework 4.8, so the add-in can be
+         built on any machine, not only on Windows. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="All" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>ThreadHarness</AssemblyName>
+    <RootNamespace>ModeledThreads.Harness</RootNamespace>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <InventorVersion Condition="'$(InventorVersion)' == ''">2027</InventorVersion>
+    <InventorInteropDir Condition="'$(InventorInteropDir)' == '' and Exists('$(MSBuildThisFileDirectory)../../refs/$(InventorVersion)/Autodesk.Inventor.Interop.dll')">$(MSBuildThisFileDirectory)../../refs/$(InventorVersion)</InventorInteropDir>
+  </PropertyGroup>
+
+  <!-- The harness runs on its own, so it carries its own copy of the interop. -->
+  <ItemGroup Condition="'$(InventorInteropDir)' != ''">
+    <Reference Include="Autodesk.Inventor.Interop">
+      <HintPath>$(InventorInteropDir)/Autodesk.Inventor.Interop.dll</HintPath>
+      <Private>true</Private>
+      <EmbedInteropTypes>false</EmbedInteropTypes>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/ModeledThreads/ModeledThreads.csproj" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="All" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,17 @@
+# Build output
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# macOS / Windows noise
+.DS_Store
+Thumbs.db
+
+# Local test artifacts
+*.log

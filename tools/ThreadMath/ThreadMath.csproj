@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>ModeledThreads.Tools</RootNamespace>
+    <AssemblyName>ThreadMath</AssemblyName>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <!-- The thread maths has no Inventor dependency, so it can be checked on any
+       machine: this tool links the same source files the add-in compiles. -->
+  <ItemGroup>
+    <Compile Include="../../src/ModeledThreads/Core/ThreadForms.cs" Link="Core/ThreadForms.cs" />
+    <Compile Include="../../src/ModeledThreads/Core/ThreadCatalog.cs" Link="Core/ThreadCatalog.cs" />
+    <Compile Include="../../src/ModeledThreads/Core/ThreadPlan.cs" Link="Core/ThreadPlan.cs" />
+  </ItemGroup>
+
+</Project>

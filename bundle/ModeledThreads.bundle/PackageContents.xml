@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPackage
+  SchemaVersion="1.0"
+  AutodeskProduct="Inventor"
+  Name="Modeled Threads"
+  Description="Cuts real modelled threads into cylindrical faces, using the standards' own thread profiles."
+  AppVersion="1.0.0"
+  ProductType="Application"
+  ProductCode="{3f5b1c2a-6d47-4a91-9d2e-8b7c5f1a4e30}"
+  UpgradeCode="{b7159b3c-a035-49fd-849d-49e93e68a62f}"
+  Version="1.0.0"
+  Author="Modeled Threads"
+  SupportedOS="Win64">
+
+  <CompanyDetails Name="Modeled Threads" />
+
+  <Components Description="Inventor 2027 add-in">
+    <RuntimeRequirements OS="Win64" Platform="Inventor" SeriesMin="Ir31" SeriesMax="Ir31" />
+    <ComponentEntry
+      AppName="Modeled Threads"
+      Version="1.0.0"
+      ModuleName="./Contents/ModeledThreads.addin"
+      AppType="Inventor" />
+  </Components>
+</ApplicationPackage>
