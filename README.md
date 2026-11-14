@@ -18,7 +18,8 @@ cut into the solid.
 * **Through and blind.** The ends of the face are read from the geometry: a free
   end, a shoulder, a closed hole bottom, or an end that runs off into another
   feature. Each is treated differently, so a flange, a shoulder, a hole bottom
-  or a sealing face keeps its shape and its area.
+  or a sealing face keeps its shape and its area. A counterbore's bottom is a
+  shoulder, not a blind hole, when a smaller hole carries on through it.
 * **A lead-in and a relief.** An open end gets the 45° lead-in cone; a shoulder
   gets a one-pitch relief so the thread runs out before it.
 * **Multi-start, left or right hand, with clearance.** 1 to 8 starts, a lead of
@@ -161,6 +162,7 @@ printed or a worn thread actually fit.
 | Free (open end) | Lead-in cone if asked for; the thread runs one pitch past the face into air |
 | Shoulder | The one-pitch relief, so the last turn ends before the face |
 | Closed (hole bottom) | The thread stops one pitch short of the bottom, so a plain band of wall is left there |
+| Counterbore shoulder | A flat end with a smaller hole through it: treated as a shoulder, so the thread runs up to it and gets its relief |
 | Inside (runs into another feature) | Treated as a shoulder |
 
 ## Opening the part without the add-in
@@ -262,7 +264,10 @@ more material. Both internal threads are checked in full: a through hole has to
 open out to the major diameter at both mouths, and a blind hole has to be opened
 out at its mouth while its bottom stays a whole disk with a plain band of wall
 above it. A tube is threaded twice, outside and then inside, and the checks hold
-the wall between the two cuts.
+the wall between the two cuts. A counterbore shoulder gets the full treatment: a
+30 mm counterbore 7 mm deep with an 8.5 mm hole through it must read as a
+shoulder, take an M33x2 thread right up to it, add the relief, and leave the
+smaller hole and its wall untouched.
 
 It also edits: a thread is cut, its record is read back from every feature and
 from a face the thread made, and then the thread is replaced with a different
@@ -271,13 +276,20 @@ that no feature of the old size is left, and that the same thread — same id, s
 number of features — is the only one in the part. That is done twice: once on a
 shaft and once in a hole, for an internal thread.
 
-88 checks, and it saves `C:\Temp\demo-plain.ipt` (a clean shaft),
+100 checks, and it saves `C:\Temp\demo-plain.ipt` (a clean shaft),
 `C:\Temp\demo-nut-plain.ipt` (a clean hole), `C:\Temp\demo-blind-plain.ipt` (a
 clean blind hole), `C:\Temp\demo-tube-plain.ipt` (a clean tube),
 `C:\Temp\demo-bolt.ipt` (a threaded shaft), `C:\Temp\demo-nut.ipt` (a threaded
 nut), `C:\Temp\demo-tube.ipt` (threaded inside and out) and
 `C:\Temp\demo-edit.ipt` (a shaft whose thread was edited in place) so the result
 can be looked at.
+
+**`tools/ThreadDoctor`** — reaches one particular Inventor instance through the
+running object table (a second, empty instance is easy to start by accident) and
+lists the documents and threads in it, with the ends it reads for each thread's
+face. `ThreadDoctor <pid> --apply "<thread name>"` re-cuts that thread in place
+through the same code as the dialog, after saving a copy of the part; that is how
+a part that is already open can be corrected without losing it.
 
 `tools/vm` holds the scripts used to drive all of this inside a Windows VM from
 the host: running the harness in the user's desktop session, opening a part,

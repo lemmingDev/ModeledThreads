@@ -311,6 +311,15 @@ public static class FaceProbeReader
                     return ThreadEndKind.Free;
                 }
 
+                // A flat face at the end of a hole can be a blind bottom or the
+                // shoulder of a counterbore. If the face has a hole through it
+                // there is more hole beyond, so the thread runs up to it and
+                // needs a relief, rather than stopping short of a bottom.
+                if (isInternal && HasOpening(neighbour, radiusCm))
+                {
+                    return ThreadEndKind.Shoulder;
+                }
+
                 return isInternal ? ThreadEndKind.Closed : ThreadEndKind.Shoulder;
             }
         }
@@ -324,6 +333,30 @@ public static class FaceProbeReader
         }
 
         return isInternal ? ThreadEndKind.Closed : ThreadEndKind.Shoulder;
+    }
+
+    /// <summary>
+    /// True when a face has a circular edge smaller than the hole it caps: the
+    /// flat end is an annulus with a hole through it, not a bottom.
+    /// </summary>
+    private static bool HasOpening(Face endFace, double radiusCm)
+    {
+        foreach (Edge edge in endFace.Edges)
+        {
+            try
+            {
+                if (edge.Geometry is Circle circle && circle.Radius < radiusCm - 1e-3)
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+                // an edge whose geometry cannot be read cannot count
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

@@ -56,11 +56,22 @@ public static class ThreadEditor
                     + ((dy - (along * axis.Y)) * (dy - (along * axis.Y)))
                     + ((dz - (along * axis.Z)) * (dz - (along * axis.Z))));
 
-                if (offset < bestOffset)
+                if (offset >= bestOffset)
                 {
-                    bestOffset = offset;
-                    best = face;
+                    continue;
                 }
+
+                // A part can have two coaxial faces of the same radius, one
+                // outside a shaft and one inside a hole. The record says which
+                // kind the thread was cut on, so the wrong one is passed over.
+                FaceProbe? probe = FaceProbeReader.Probe(document, face, geometry);
+                if (probe is null || probe.Internal != record.Internal)
+                {
+                    continue;
+                }
+
+                bestOffset = offset;
+                best = face;
             }
         }
 
@@ -87,16 +98,20 @@ public static class ThreadEditor
             Remove(document, existing.ThreadId);
 
             // The surface the thread was cut into has to be back for the new cut
-            // to have something to bite into. It is only a check: the new cut is
-            // placed by the record's geometry, not by a face reference.
-            if (FindFace(document, updated, app.TransientGeometry) is null)
+            // to have something to bite into. It is looked at again here, rather
+            // than replayed from the record, so that an edit also picks up a
+            // corrected reading of its ends: a counterbore shoulder that used to
+            // look like a blind bottom becomes a shoulder and gets its relief.
+            Face? face = FindFace(document, updated, app.TransientGeometry);
+            if (face is null)
             {
                 throw new ThreadPlanException(
                     "The surface the thread was cut into is no longer in the part, "
                     + "so the thread was left as it was.");
             }
 
-            FaceProbe probe = FaceProbe.FromRecord(updated, app.TransientGeometry);
+            FaceProbe probe = FaceProbeReader.Probe(document, face, app.TransientGeometry)
+                              ?? FaceProbe.FromRecord(updated, app.TransientGeometry);
             ThreadPlan plan = makePlan(probe);
 
             var builder = new ThreadBuilder(app, document, probe);

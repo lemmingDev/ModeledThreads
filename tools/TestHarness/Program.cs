@@ -54,6 +54,10 @@ Console.WriteLine("== an internal thread in a blind hole ==");
 InternalBlind(app, geometry);
 
 Console.WriteLine();
+Console.WriteLine("== an internal thread into a counterbore shoulder ==");
+CounterboreShoulder(app, geometry);
+
+Console.WriteLine();
 Console.WriteLine("== internal threads with the lead-in ==");
 InternalLeadIns(app, geometry);
 
@@ -413,6 +417,102 @@ void InternalBlind(Inventor.Application app, TransientGeometry geometry)
     Check("the thread stops clear of the bottom", threadLow > 5.4,
         $"the lowest thread face is at {threadLow:0.###} mm, the bottom at 5 mm");
     Check("the thread reaches the mouth", threadHigh > 19.0, $"{threadHigh:0.###} mm");
+
+    doc.Close(true);
+}
+
+void CounterboreShoulder(Inventor.Application app, TransientGeometry geometry)
+{
+    PartDocument doc = NewPart(app);
+    PartComponentDefinition def = doc.ComponentDefinition;
+
+    // A 40 mm block with a 30 mm counterbore 7 mm deep, and an 8.5 mm hole
+    // through it. The counterbore's bottom is an annulus with a smaller hole
+    // through it: it is a shoulder, not the bottom of a blind hole, so the
+    // thread runs up to it and gets a relief.
+    ExtrudeRectangle(def, geometry, 40.0, 40.0, 20.0);
+    ExtrudeCircle(def, geometry, 15.0, 7.0, PartFeatureOperationEnum.kCutOperation,
+        atZ: 20.0, downwards: true);
+    ExtrudeCircle(def, geometry, 4.25, 20.0, PartFeatureOperationEnum.kCutOperation,
+        atZ: 20.0, downwards: true);
+
+    double before = Volume(def);
+
+    Face? bore = FindCylinder(def, 15.0);
+    if (bore is null)
+    {
+        Check("the counterbore's face was found", false);
+        doc.Close(true);
+        return;
+    }
+
+    FaceProbe? probe = FaceProbeReader.Probe(doc, bore, geometry);
+    if (probe is null)
+    {
+        Check("the counterbore's face was read", false);
+        doc.Close(true);
+        return;
+    }
+
+    double lowZ = EndZ(probe, low: true);
+    double highZ = EndZ(probe, low: false);
+    bool shoulderAtBottom = (Math.Abs(lowZ - 13.0) < 0.1 && probe.LowEnd == ThreadEndKind.Shoulder)
+                            || (Math.Abs(highZ - 13.0) < 0.1 && probe.HighEnd == ThreadEndKind.Shoulder);
+    bool mouthFree = (Math.Abs(lowZ - 20.0) < 0.1 && probe.LowEnd == ThreadEndKind.Free)
+                     || (Math.Abs(highZ - 20.0) < 0.1 && probe.HighEnd == ThreadEndKind.Free);
+
+    Check("the counterbore's bottom with a hole through it is a shoulder",
+        shoulderAtBottom, $"low {lowZ:0.##} {probe.LowEnd}, high {highZ:0.##} {probe.HighEnd}");
+    Check("the counterbore's mouth is free", mouthFree);
+
+    ThreadPlan plan = Plan(probe, "M33x2", internalThread: true, lengthMm: 0,
+        clearanceMm: 0, chamferStart: true, chamferEnd: true);
+
+    Check("the shoulder gets its relief", plan.Relief is not null,
+        plan.Relief is null ? "no relief in the plan" : $"{plan.Relief.Value.EndMm - plan.Relief.Value.StartMm:0.##} mm high, r {plan.Relief.Value.InnerRadiusMm:0.##}..{plan.Relief.Value.OuterRadiusMm:0.##} mm");
+
+    ThreadRecord record = Cut(doc, probe, plan);
+
+    List<object> features = ThreadMetadata.Features(def, record.ThreadId);
+    Check("the thread is the coil, the lead-in and the relief", features.Count == 3,
+        $"{features.Count} features: {string.Join(", ", features.Select(ThreadMetadata.NameOf))}");
+
+    (double threadLow, double threadHigh) = ThreadFaceRange(def);
+    Check("the thread's last whole turn runs out at the shoulder", threadLow <= 15.2,
+        $"the lowest swept face is at {threadLow:0.###} mm, the shoulder at 13 mm");
+    Check("the thread reaches the counterbore's mouth", threadHigh > 19.0, $"{threadHigh:0.###} mm");
+
+    Check("the thread took material away", Volume(def) < before,
+        $"{before:0.#} -> {Volume(def):0.#} mm3");
+
+    // The smaller hole carries on past the shoulder and must not be touched:
+    // its wall is still the drill's, and stays exactly as long.
+    Face? small = FindCylinder(def, 4.25);
+    Check("the smaller hole is still there", small is not null);
+    if (small is not null)
+    {
+        Near("the smaller hole's wall is untouched",
+            small.Evaluator.Area * 100, 2 * Math.PI * 4.25 * 13.0, 2.0, " mm2");
+    }
+
+    double belowEdge = MaxRadiusInBand(def, 0.0, 12.0);
+    Check("nothing was cut below the counterbore", belowEdge <= 4.35,
+        $"{belowEdge:0.###} mm from the axis");
+
+    // The relief is cut into the wall at the shoulder, so the shoulder face
+    // now runs out to the relief's own radius; its inner edge is still the
+    // drill's, and the annulus around the smaller hole is untouched.
+    Face? shoulder = FindPlaneAt(def, 13.0);
+    Check("the counterbore's shoulder is still there", shoulder is not null);
+    if (shoulder is not null && plan.Relief is { } relief)
+    {
+        // The cut is made a tenth of a millimetre past the thread's root so
+        // that no face of it is coincident with the wall.
+        double outer = Math.Max(relief.OuterRadiusMm + 0.1, 15.0);
+        Near("the shoulder runs out to the relief, and no further",
+            shoulder.Evaluator.Area * 100,
+            Math.PI * ((outer * outer) - (4.25 * 4.25)), 3.0, " mm2");
+    }
 
     doc.Close(true);
 }
