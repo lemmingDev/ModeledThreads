@@ -310,6 +310,18 @@ a part that is already open can be corrected without losing it.
 the host: running the harness in the user's desktop session, opening a part,
 pressing buttons through UI Automation, and screenshotting the result.
 
+Running anything in the user's desktop session normally goes through the Task
+Scheduler. When the scheduler itself is stuck (launch requests queue and never
+start, which happens after a VM is suspended and resumed), `tools/SessionRunner`
+takes the console session's own token and starts the command with it:
+
+```
+C:\Temp\SessionRunner.exe --wait powershell -NoProfile -File C:\Temp\script.ps1
+```
+
+It prints the pid and, with `--wait`, the exit code. That is what makes
+`tools/vm/open-part.ps1` and `tools/vm/create-thread.ps1` usable from the host.
+
 ## Signing
 
 To remove the first-run security prompt, sign the DLL with a certificate
