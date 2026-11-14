@@ -163,7 +163,19 @@ printed or a worn thread actually fit.
 | Shoulder | The one-pitch relief, so the last turn ends before the face |
 | Closed (hole bottom) | The thread stops one pitch short of the bottom, so a plain band of wall is left there |
 | Counterbore shoulder | A flat end with a smaller hole through it: treated as a shoulder, so the thread runs up to it and gets its relief |
+| Joint between two bodies | A flat end where a second body is butted on, with a smaller hole carrying on through it: read as a shoulder, so the thread runs up to the joint and gets its relief |
 | Inside (runs into another feature) | Treated as a shoulder |
+
+The end is read from what the hole itself meets, and a smaller hole carrying on
+through the flat end is what tells a shoulder from a bottom. Every face on the
+end plane is looked at, not only the one the hole's wall happens to touch: a
+part can be two bodies butted together, and the smaller hole is then bored into
+the body behind. Material of another body lying beyond the end is not taken for
+air either, so a thread never runs out through the body a part is joined to.
+
+In a part of more than one body each cut is also aimed explicitly at the body
+whose face is being threaded. Inventor aims a cut at the first body by default,
+and a cut that belongs to another body would otherwise do nothing, silently.
 
 ## Opening the part without the add-in
 
@@ -267,7 +279,10 @@ above it. A tube is threaded twice, outside and then inside, and the checks hold
 the wall between the two cuts. A counterbore shoulder gets the full treatment: a
 30 mm counterbore 7 mm deep with an 8.5 mm hole through it must read as a
 shoulder, take an M33x2 thread right up to it, add the relief, and leave the
-smaller hole and its wall untouched.
+smaller hole and its wall untouched. The same shoulder is then made the hard
+way, by butting a second body against the first with a smaller hole bored
+through it: the joint has to read as a shoulder as well, take the same thread
+and the same relief, and leave the second body's hole whole.
 
 It also edits: a thread is cut, its record is read back from every feature and
 from a face the thread made, and then the thread is replaced with a different
@@ -276,7 +291,7 @@ that no feature of the old size is left, and that the same thread — same id, s
 number of features — is the only one in the part. That is done twice: once on a
 shaft and once in a hole, for an internal thread.
 
-100 checks, and it saves `C:\Temp\demo-plain.ipt` (a clean shaft),
+109 checks, and it saves `C:\Temp\demo-plain.ipt` (a clean shaft),
 `C:\Temp\demo-nut-plain.ipt` (a clean hole), `C:\Temp\demo-blind-plain.ipt` (a
 clean blind hole), `C:\Temp\demo-tube-plain.ipt` (a clean tube),
 `C:\Temp\demo-bolt.ipt` (a threaded shaft), `C:\Temp\demo-nut.ipt` (a threaded

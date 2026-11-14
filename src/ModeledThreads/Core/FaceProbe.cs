@@ -37,6 +37,14 @@ public sealed class FaceProbe
     /// <summary>True when the face's normal points out of the material.</summary>
     public required bool NormalIsOutward { get; init; }
 
+    /// <summary>
+    /// The solid body the face belongs to. A part can be several bodies, and a
+    /// cut left to itself is aimed at the first of them, so the thread's cuts
+    /// are aimed at this one. It is null when the probe came from a record and
+    /// there is no body to point at.
+    /// </summary>
+    public SurfaceBody? Body { get; init; }
+
     /// <summary>The face's length along the axis, in millimetres.</summary>
     public double LengthMm => (HighCm - LowCm) * 10.0;
 
@@ -119,7 +127,8 @@ public static class FaceProbeReader
             Internal = isInternal,
             LowEnd = lowEnd,
             HighEnd = highEnd,
-            NormalIsOutward = normalIsOutward
+            NormalIsOutward = normalIsOutward,
+            Body = BodyOf(face)
         };
     }
 
@@ -303,21 +312,27 @@ public static class FaceProbeReader
                              + normal[1] * axis.Y * direction
                              + normal[2] * axis.Z * direction;
 
-                // The normal points away from the material: with the end's
-                // direction it means there is air beyond the end, so the groove
-                // may run out into it.
-                if (dot > 0)
-                {
-                    return ThreadEndKind.Free;
-                }
-
-                // A flat face at the end of a hole can be a blind bottom or the
-                // shoulder of a counterbore. If the face has a hole through it
+                // A flat face at the end of a hole can be a blind bottom, the
+                // shoulder of a counterbore, or the joint where two bodies are
+                // butted together. If a smaller hole carries on through it
                 // there is more hole beyond, so the thread runs up to it and
-                // needs a relief, rather than stopping short of a bottom.
-                if (isInternal && HasOpening(neighbour, radiusCm))
+                // needs a relief, rather than stopping short of a bottom. This
+                // is asked before the normal is looked at, because at a joint
+                // the neighbour can be the other body's face and its normal
+                // points back into the part, which would read as a bottom.
+                if (isInternal && HasOpening(document, basePoint, axis, endPosition, radiusCm))
                 {
                     return ThreadEndKind.Shoulder;
+                }
+
+                // The normal points away from the material: with the end's
+                // direction it means there is air beyond the end, so the groove
+                // may run out into it. Material of another body lying behind the
+                // end is not air, though: the thread must stop at the joint
+                // rather than cut into the body behind.
+                if (dot > 0 && !BodyExtendsBeyond(document, basePoint, axis, endPosition, direction))
+                {
+                    return ThreadEndKind.Free;
                 }
 
                 return isInternal ? ThreadEndKind.Closed : ThreadEndKind.Shoulder;
@@ -335,28 +350,88 @@ public static class FaceProbeReader
         return isInternal ? ThreadEndKind.Closed : ThreadEndKind.Shoulder;
     }
 
-    /// <summary>
-    /// True when a face has a circular edge smaller than the hole it caps: the
-    /// flat end is an annulus with a hole through it, not a bottom.
-    /// </summary>
-    private static bool HasOpening(Face endFace, double radiusCm)
+    /// <summary>The body the face is part of, or null if it cannot be read.</summary>
+    private static SurfaceBody? BodyOf(Face face)
     {
-        foreach (Edge edge in endFace.Edges)
+        try
         {
-            try
+            return face.SurfaceBody;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not tell which body the face belongs to: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// True when a smaller hole carries on through the flat face at the end of
+    /// the given hole. Every face on the end plane is looked at, not only the
+    /// one the hole's own wall meets: a part can have two bodies butted
+    /// together, and the smaller hole can be bored into the one behind.
+    /// </summary>
+    private static bool HasOpening(
+        PartDocument document,
+        Point basePoint,
+        UnitVector axis,
+        double endPosition,
+        double radiusCm)
+    {
+        try
+        {
+            foreach (SurfaceBody body in document.ComponentDefinition.SurfaceBodies)
             {
-                if (edge.Geometry is Circle circle && circle.Radius < radiusCm - 1e-3)
+                foreach (Face face in body.Faces)
                 {
-                    return true;
+                    if (face.SurfaceType != SurfaceTypeEnum.kPlaneSurface
+                        || face.Geometry is not Plane plane)
+                    {
+                        continue;
+                    }
+
+                    if (Math.Abs(Project(plane.RootPoint, basePoint, axis) - endPosition) > EndToleranceCm)
+                    {
+                        continue;
+                    }
+
+                    foreach (Edge edge in face.Edges)
+                    {
+                        if (edge.Geometry is not Circle circle
+                            || circle.Radius >= radiusCm - 1e-3)
+                        {
+                            continue;
+                        }
+
+                        // It has to be the same hole: a small circle off to one
+                        // side of the end plane is some other feature.
+                        if (RadialDistance(circle.Center, basePoint, axis) < 1e-3)
+                        {
+                            return true;
+                        }
+                    }
                 }
             }
-            catch
-            {
-                // an edge whose geometry cannot be read cannot count
-            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not look for an opening at the end of the face: {ex.Message}");
         }
 
         return false;
+    }
+
+    /// <summary>A point's distance from the axis through the base point.</summary>
+    private static double RadialDistance(Point point, Point basePoint, UnitVector axis)
+    {
+        double dx = point.X - basePoint.X;
+        double dy = point.Y - basePoint.Y;
+        double dz = point.Z - basePoint.Z;
+        double along = (dx * axis.X) + (dy * axis.Y) + (dz * axis.Z);
+
+        return Math.Sqrt(
+            ((dx - (along * axis.X)) * (dx - (along * axis.X)))
+            + ((dy - (along * axis.Y)) * (dy - (along * axis.Y)))
+            + ((dz - (along * axis.Z)) * (dz - (along * axis.Z))));
     }
 
     /// <summary>

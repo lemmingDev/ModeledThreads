@@ -97,6 +97,7 @@ public sealed class ThreadBuilder
                 !plan.RightHanded));
 
             Stage("coil name", () => coil.Name = $"Modeled Thread {plan.Designation}" + (plan.Starts > 1 ? $" ({start + 1})" : string.Empty));
+            AimAtFaceBody(coil, coil.Name);
             ThreadMetadata.Write(coil, record);
             CreatedFeatures.Add(coil.Name);
         }
@@ -203,6 +204,7 @@ public sealed class ThreadBuilder
             _document.ComponentDefinition.Features.RevolveFeatures.AddFull(
                 profile, workAxis, PartFeatureOperationEnum.kCutOperation));
         revolve.Name = $"Modeled Thread Lead-in {plan.Designation}";
+        AimAtFaceBody(revolve, revolve.Name);
         if (_record is not null)
         {
             ThreadMetadata.Write(revolve, _record);
@@ -260,6 +262,7 @@ public sealed class ThreadBuilder
             _document.ComponentDefinition.Features.RevolveFeatures.AddFull(
                 profile, workAxis, PartFeatureOperationEnum.kCutOperation));
         revolve.Name = $"Modeled Thread Relief {plan.Designation}";
+        AimAtFaceBody(revolve, revolve.Name);
         if (_record is not null)
         {
             ThreadMetadata.Write(revolve, _record);
@@ -270,6 +273,33 @@ public sealed class ThreadBuilder
         Log.Info(
             $"Shoulder relief cut: {relief.EndMm - relief.StartMm:0.###} mm high, " +
             $"r {relief.InnerRadiusMm:0.###}..{relief.OuterRadiusMm:0.###} mm.");
+    }
+
+    /// <summary>
+    /// Aims a cut at the body whose face is being threaded. In a part of two
+    /// bodies or more a cut left to itself is aimed at the first body, and a
+    /// cut that belongs to another body then does nothing at all, without an
+    /// error. A single-body part is left as it is.
+    /// </summary>
+    private void AimAtFaceBody(object feature, string name)
+    {
+        SurfaceBody? body = _probe.Body;
+        if (body is null || _document.ComponentDefinition.SurfaceBodies.Count < 2)
+        {
+            return;
+        }
+
+        try
+        {
+            ObjectCollection bodies = _app.TransientObjects.CreateObjectCollection();
+            bodies.Add(body);
+            ((dynamic)feature).SetAffectedBodies(bodies);
+        }
+        catch (Exception ex)
+        {
+            // The cut has still been made; it is only aimed at the default body.
+            Log.Warn($"'{name}' could not be aimed at the face's body: {ex.Message}");
+        }
     }
 
     /// <summary>A stage of the build, named so a failure says where it happened.</summary>

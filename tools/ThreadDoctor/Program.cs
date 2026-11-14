@@ -19,6 +19,7 @@ if (args.Length == 0 || !int.TryParse(args[0], out int pid))
 
 bool apply = args.Length > 2 && args[1] == "--apply";
 string threadName = apply ? args[2] : string.Empty;
+bool describe = args.Contains("--ends");
 
 Inventor.Application? app = Rot.FindApplication(pid);
 if (app is null)
@@ -85,6 +86,11 @@ foreach (PartFeature feature in definition.Features)
         ? "  the face it was cut on was not found"
         : $"  re-read face: r {probe.RadiusMm:0.###} mm, {probe.LowCm * 10:0.###}..{probe.HighCm * 10:0.###} mm, "
           + $"internal={probe.Internal}, ends {probe.LowEnd}/{probe.HighEnd}");
+
+    if (describe)
+    {
+        DescribeFaces(part, record.RadiusCm, app);
+    }
 
     if (!apply || !string.Equals(feature.Name, threadName, StringComparison.OrdinalIgnoreCase))
     {
@@ -169,6 +175,127 @@ foreach (PartFeature feature in definition.Features)
 }
 
 return 0;
+
+/// <summary>
+/// Every cylindrical face of the thread's radius, its ends, and the faces and
+/// edges each end meets. This is the reading the end classification works from,
+/// so it shows why an end came out the way it did.
+/// </summary>
+static void DescribeFaces(PartDocument part, double radiusCm, Inventor.Application app)
+{
+    foreach (SurfaceBody body in part.ComponentDefinition.SurfaceBodies)
+    {
+        foreach (Face face in body.Faces)
+        {
+            if (face.SurfaceType != SurfaceTypeEnum.kCylinderSurface || face.Geometry is not Cylinder cylinder)
+            {
+                continue;
+            }
+
+            if (Math.Abs(cylinder.Radius - radiusCm) > 1e-3)
+            {
+                continue;
+            }
+
+            FaceProbe? probe = FaceProbeReader.Probe(part, face, app.TransientGeometry);
+            Console.WriteLine();
+            Console.WriteLine($"face {face.TransientKey}: r {cylinder.Radius * 10:0.###} mm");
+            if (probe is null)
+            {
+                Console.WriteLine("  could not be read");
+                continue;
+            }
+
+            Console.WriteLine($"  axis {probe.Axis.X:0.###},{probe.Axis.Y:0.###},{probe.Axis.Z:0.###}");
+            Console.WriteLine($"  extent {probe.LowCm * 10:0.###}..{probe.HighCm * 10:0.###} mm, internal={probe.Internal}");
+            Console.WriteLine($"  ends {probe.LowEnd}/{probe.HighEnd}");
+
+            DescribeEnd(face, probe, low: true);
+            DescribeEnd(face, probe, low: false);
+        }
+    }
+}
+
+/// <summary>What one end of a face meets: its edges, the faces beside them, and
+/// the edges of those faces.</summary>
+static void DescribeEnd(Face face, FaceProbe probe, bool low)
+{
+    double end = low ? probe.LowCm : probe.HighCm;
+
+    double Project(Point p) =>
+        (p.X - probe.BasePoint.X) * probe.Axis.X
+        + (p.Y - probe.BasePoint.Y) * probe.Axis.Y
+        + (p.Z - probe.BasePoint.Z) * probe.Axis.Z;
+
+    Console.WriteLine($"  {(low ? "low" : "high")} end at {end * 10:0.###} mm:");
+
+    foreach (Edge edge in face.Edges)
+    {
+        double t;
+        try
+        {
+            t = Project(edge.PointOnEdge);
+        }
+        catch
+        {
+            continue;
+        }
+
+        if (Math.Abs(t - end) > 0.01)
+        {
+            continue;
+        }
+
+        Console.WriteLine($"    edge {GeometryName(edge.Geometry)}, at {t * 10:0.###} mm");
+
+        foreach (Face neighbour in edge.Faces)
+        {
+            if (neighbour.TransientKey == face.TransientKey)
+            {
+                continue;
+            }
+
+            string extra = string.Empty;
+            if (neighbour.Geometry is Plane plane)
+            {
+                extra = $", plane at {Project(plane.RootPoint) * 10:0.###} mm, "
+                        + $"normal {plane.Normal.X * probe.Axis.X + plane.Normal.Y * probe.Axis.Y + plane.Normal.Z * probe.Axis.Z:0.###}";
+            }
+
+            Console.WriteLine($"      neighbour {neighbour.SurfaceType}{extra}");
+
+            foreach (Edge inner in neighbour.Edges)
+            {
+                string radius = inner.Geometry is Circle circle ? $", r {circle.Radius * 10:0.###} mm" : string.Empty;
+                string where = string.Empty;
+                try
+                {
+                    where = $", at {Project(inner.PointOnEdge) * 10:0.###} mm";
+                }
+                catch
+                {
+                    // an edge that cannot be placed is still worth naming
+                }
+
+                Console.WriteLine($"        its edge {GeometryName(inner.Geometry)}{radius}{where}");
+            }
+        }
+    }
+}
+
+static string GeometryName(object? geometry)
+{
+    return geometry switch
+    {
+        Circle => "Circle",
+        Line => "Line",
+        EllipseFull => "Ellipse",
+        EllipticalArc => "EllipticalArc",
+        BSplineCurve => "BSplineCurve",
+        null => "null",
+        _ => geometry.GetType().Name
+    };
+}
 
 static int ChooseStartSide(FaceProbe probe)
 {

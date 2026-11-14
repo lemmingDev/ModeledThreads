@@ -1,5 +1,6 @@
 @echo off
-for %%p in (12772 9068 2184) do (
-  echo ==== %%p
-  C:\Temp\ThreadDoctor\ThreadDoctor.exe %%p 2>&1 | findstr /C:"Inventor:" /C:"Documents:" /C:"'" /C:"No part" /C:"No Inventor"
-) > C:\Temp\doctor-list.txt 2>&1
+echo starting > C:\Temp\doctor-list.txt
+for %%p in (4028 12772 9068 2184 14752) do (
+  echo ==== %%p >> C:\Temp\doctor-list.txt
+  C:\Temp\ThreadDoctor\ThreadDoctor.exe %%p >> C:\Temp\doctor-list.txt 2>&1
+)

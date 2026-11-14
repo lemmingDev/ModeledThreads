@@ -58,6 +58,10 @@ Console.WriteLine("== an internal thread into a counterbore shoulder ==");
 CounterboreShoulder(app, geometry);
 
 Console.WriteLine();
+Console.WriteLine("== a shoulder made by a second body butted against the first ==");
+ButtedBodies(app, geometry);
+
+Console.WriteLine();
 Console.WriteLine("== internal threads with the lead-in ==");
 InternalLeadIns(app, geometry);
 
@@ -512,6 +516,87 @@ void CounterboreShoulder(Inventor.Application app, TransientGeometry geometry)
         Near("the shoulder runs out to the relief, and no further",
             shoulder.Evaluator.Area * 100,
             Math.PI * ((outer * outer) - (4.25 * 4.25)), 3.0, " mm2");
+    }
+
+    doc.Close(true);
+}
+
+void ButtedBodies(Inventor.Application app, TransientGeometry geometry)
+{
+    PartDocument doc = NewPart(app);
+    PartComponentDefinition def = doc.ComponentDefinition;
+
+    // Two bodies end to end. The upper one has a 30 mm bore; the lower one has
+    // a 26 mm hole, so the upper bore ends on an annulus and the smaller hole
+    // carries on. The smaller hole's edge belongs to the other body, which is
+    // the case that used to read as a blind bottom.
+    // Both bores are cut exactly through their own body, so the faces meet at
+    // z = 0 without either cut running into the body behind it.
+    ExtrudeCircle(def, geometry, 19.0, 10.0, PartFeatureOperationEnum.kJoinOperation);
+    ExtrudeCircle(def, geometry, 15.0, 10.0, PartFeatureOperationEnum.kCutOperation,
+        atZ: 10.0, downwards: true);
+
+    ExtrudeCircle(def, geometry, 19.0, 10.0, PartFeatureOperationEnum.kNewBodyOperation,
+        atZ: 0.0, downwards: true);
+
+    // The cut starts just above the joint: a cut whose start face is exactly
+    // coincident with the body's own top face is the one case Inventor leaves
+    // alone, and the hole would never appear.
+    ExtrudeCircle(def, geometry, 13.0, 11.0, PartFeatureOperationEnum.kCutOperation,
+        atZ: 0.5, downwards: true);
+
+    Check("the part has two bodies", def.SurfaceBodies.Count == 2,
+        $"{def.SurfaceBodies.Count} bodies");
+
+    Face? bore = FindCylinder(def, 15.0);
+    if (bore is null)
+    {
+        Check("the upper body's bore was found", false);
+        doc.Close(true);
+        return;
+    }
+
+    FaceProbe? probe = FaceProbeReader.Probe(doc, bore, geometry);
+    if (probe is null)
+    {
+        Check("the upper body's bore was read", false);
+        doc.Close(true);
+        return;
+    }
+
+    double lowZ = EndZ(probe, low: true);
+    double highZ = EndZ(probe, low: false);
+    bool shoulderAtJoint = (Math.Abs(lowZ - 0.0) < 0.1 && probe.LowEnd == ThreadEndKind.Shoulder)
+                           || (Math.Abs(highZ - 0.0) < 0.1 && probe.HighEnd == ThreadEndKind.Shoulder);
+    Check("the joint is read as a shoulder, not a blind bottom",
+        shoulderAtJoint, $"low {lowZ:0.##} {probe.LowEnd}, high {highZ:0.##} {probe.HighEnd}");
+
+    ThreadPlan plan = Plan(probe, "M33x2", internalThread: true, lengthMm: 0,
+        clearanceMm: 0, chamferStart: true, chamferEnd: true);
+
+    Check("the joint gets its relief", plan.Relief is not null);
+
+    double before = Volume(def);
+    ThreadRecord record = Cut(doc, probe, plan);
+    Check("the thread took material away", Volume(def) < before,
+        $"{before:0.#} -> {Volume(def):0.#} mm3");
+
+    List<object> features = ThreadMetadata.Features(def, record.ThreadId);
+    Check("the thread is the coil, the lead-in and the relief", features.Count == 3,
+        $"{features.Count} features: {string.Join(", ", features.Select(ThreadMetadata.NameOf))}");
+
+    (double threadLow, double threadHigh) = ThreadFaceRange(def);
+    Check("the thread reaches the joint", threadLow < 2.5,
+        $"the lowest swept face is at {threadLow:0.###} mm, the joint at 0 mm");
+    Check("the thread reaches the mouth", threadHigh > 9.0, $"{threadHigh:0.###} mm");
+
+    // The lower body's smaller hole is untouched, and keeps its own length.
+    Face? smaller = FindCylinder(def, 13.0);
+    Check("the smaller hole is still there", smaller is not null);
+    if (smaller is not null)
+    {
+        Near("the smaller hole is untouched",
+            smaller.Evaluator.Area * 100, 2 * Math.PI * 13.0 * 10.0, 3.0, " mm2");
     }
 
     doc.Close(true);
@@ -1266,6 +1351,20 @@ ExtrudeFeature ExtrudeCircle(
         downwards
             ? PartFeatureExtentDirectionEnum.kNegativeExtentDirection
             : PartFeatureExtentDirectionEnum.kPositiveExtentDirection);
+
+    // In a part of more than one body a cut is aimed at the bodies it passes
+    // through; left to itself it aims at the first body only, and a cut in a
+    // new body behind the first does nothing at all.
+    if (def.SurfaceBodies.Count > 1)
+    {
+        ObjectCollection bodies = app!.TransientObjects.CreateObjectCollection();
+        foreach (SurfaceBody body in def.SurfaceBodies)
+        {
+            bodies.Add(body);
+        }
+
+        extrude.AffectedBodies = bodies;
+    }
 
     return def.Features.ExtrudeFeatures.Add(extrude);
 }
