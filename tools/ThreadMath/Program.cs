@@ -282,8 +282,9 @@ Console.WriteLine("== the size the dialog suggests ==");
 
     if (fit is not null)
     {
-        string text = ThreadCatalog.Format(fit.Value);
+        string text = ThreadCatalog.FormatWithPitch(fit.Value);
         bool inList = false;
+        bool bare = false;
         int count = 0;
         foreach (string d in ThreadCatalog.Designations(ThreadFormKind.Metric))
         {
@@ -292,10 +293,17 @@ Console.WriteLine("== the size the dialog suggests ==");
             {
                 inList = true;
             }
+
+            if (d == "M10")
+            {
+                bare = true;
+            }
         }
 
         Check($"'{text}' is one of the {count} metric sizes", inList,
             inList ? string.Empty : "so the dialog cannot pick it from the list");
+        Check("the detected size spells out the pitch", text == "M10x1.5", text);
+        Check("the metric list has no bare diameter", !bare, "M10 is still in the list");
     }
 }
 

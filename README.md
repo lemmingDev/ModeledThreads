@@ -1,4 +1,4 @@
-# Modeled Threads for Autodesk Inventor 2027
+# Modeled Threads for Autodesk Inventor 2025–2027
 
 Cuts a **real, modelled thread** into any cylindrical face — a shaft, a boss, a
 through hole or the wall of a blind hole. There is no cosmetic thread to create
@@ -43,7 +43,7 @@ M10 × 1.5 in the hole, with the wall between them untouched.</i></p>
 
 | | |
 |---|---|
-| Inventor | 2027 (the interop is referenced from `refs/2027`) |
+| Inventor | 2025, 2026 or 2027 (built against 2025's interop, so one DLL runs on all three) |
 | Windows | 10 or 11, 64-bit |
 | Runtime | .NET Framework 4.8 — already part of Windows, nothing to install |
 
@@ -76,13 +76,13 @@ certificate removes the prompt (see [Signing](#signing)).
    Thread** on the *Modeled Threads* tab (Inventor then asks for the face).
 2. The dialog fills itself in for the face: whether it is a shaft or a hole, its
    radius, its length and what each end is. The suggested size is the one that
-   fits the face.
+   fits the face, with its pitch spelled out (`M10x1.5`, not just `M10`).
 3. Choose the standard and size, then any of:
 
 | Field | What it does |
 |---|---|
 | Standard | ISO metric, trapezoidal, Acme, buttress, BSPP (G) or Rp |
-| Designation | The size; type it or pick it. `M10`, `M10x1.25`, `Tr20x4`, `1/2-10 ACME`, `G 1/2`, `Rp 1/2` |
+| Designation | The size; type it or pick it. The detected size spells out its pitch — a coarse M10 is shown as `M10x1.5` — and the list does the same. `M10` still parses, as do `M10x1.25`, `Tr20x4`, `1/2-10 ACME`, `G 1/2`, `Rp 1/2` |
 | Length | How much of the face to thread, in mm. Empty means all of it |
 | Clearance | Extra material cut from the thread, in mm |
 | Starts | 1 to 8; the lead becomes pitch × starts |
@@ -242,7 +242,7 @@ the reason is in there.
 ## Building
 
 ```
-./build.ps1                 # Release, Inventor 2027, add-in and harness
+./build.ps1                 # Release, built against Inventor 2025, add-in and harness
 ./build.ps1 -SkipHarness    # the add-in alone
 ```
 

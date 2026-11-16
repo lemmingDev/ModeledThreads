@@ -307,7 +307,7 @@ public sealed class CreateThreadForm : Form
             return;
         }
 
-        string designation = ThreadCatalog.Format(fit.Value);
+        string designation = ThreadCatalog.FormatWithPitch(fit.Value);
         int index = _designationCombo.Items.IndexOf(designation);
         if (index >= 0)
         {

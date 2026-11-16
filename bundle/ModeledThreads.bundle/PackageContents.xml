@@ -14,8 +14,8 @@
 
   <CompanyDetails Name="Modeled Threads" />
 
-  <Components Description="Inventor 2027 add-in">
-    <RuntimeRequirements OS="Win64" Platform="Inventor" SeriesMin="Ir31" SeriesMax="Ir31" />
+  <Components Description="Inventor 2025-2027 add-in">
+    <RuntimeRequirements OS="Win64" Platform="Inventor" SeriesMin="Ir29" SeriesMax="Ir31" />
     <ComponentEntry
       AppName="Modeled Threads"
       Version="1.0.0"

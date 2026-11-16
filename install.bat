@@ -1,7 +1,7 @@
 @echo off
 REM Modeled Threads - one-click installer for Windows.
-REM Double-click this file to install the add-in for Autodesk Inventor 2027.
-REM Requires: Inventor 2027 closed. The add-in uses .NET Framework 4.8,
+REM Double-click this file to install the add-in for Autodesk Inventor 2025-2027.
+REM Requires: Inventor closed. The add-in uses .NET Framework 4.8,
 REM which ships with Windows, so there is nothing else to install.
 
 setlocal
@@ -41,7 +41,7 @@ echo.
 echo Installation complete.
 echo.
 echo Next steps:
-echo   1. Start Autodesk Inventor 2027.
+echo   1. Start Autodesk Inventor (2025, 2026 or 2027).
 echo   2. If an "Add-in Manager Security Alert" appears, click "Launch Add-in Manager",
 echo      pick "Modeled Threads", click "Unblock", then OK. (Once per user.)
 echo   3. Open a part, pick a cylindrical face and use the "Modeled Threads" ribbon tab.

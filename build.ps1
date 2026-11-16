@@ -16,7 +16,8 @@
     folder is always the thing to install.
 
 .PARAMETER InventorVersion
-    Inventor release to compile against: 2025, 2026 or 2027 (default 2027).
+    Inventor release to compile against: 2025, 2026 or 2027 (default 2025,
+    the oldest supported, so one DLL runs on all three).
 
 .PARAMETER InventorInteropDir
     Explicit folder holding Autodesk.Inventor.Interop.dll, for building against
@@ -31,7 +32,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet('2025', '2026', '2027')]
-    [string] $InventorVersion = '2027',
+    [string] $InventorVersion = '2025',
 
     [string] $InventorInteropDir = '',
 

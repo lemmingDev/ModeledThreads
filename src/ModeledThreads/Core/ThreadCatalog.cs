@@ -112,11 +112,17 @@ public static class ThreadCatalog
         switch (form)
         {
             case ThreadFormKind.Metric:
-                // A coarse thread is named by its diameter alone: M10, not
-                // M10x1.5. The fine pitches need the pitch spelled out.
-                foreach (var (d, _) in MetricCoarse)
+                // The dialog shows the pitch with every size, so a coarse M10
+                // appears as M10x1.5 rather than a bare M10. Typing M10 still
+                // parses; this is only what the list and the detected size show.
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var (d, p) in MetricCoarse)
                 {
-                    yield return $"M{Show(d)}";
+                    string designation = FormatMetric(d, p, p);
+                    if (seen.Add(designation))
+                    {
+                        yield return designation;
+                    }
                 }
 
                 foreach (var (d, _) in MetricCoarse)
@@ -128,7 +134,11 @@ public static class ThreadCatalog
 
                     foreach (double p in fines)
                     {
-                        yield return FormatMetric(d, p, p);
+                        string designation = FormatMetric(d, p, p);
+                        if (seen.Add(designation))
+                        {
+                            yield return designation;
+                        }
                     }
                 }
 
@@ -478,6 +488,25 @@ public static class ThreadCatalog
                     ? $"Rp {PipeSizes.FirstOrDefault(s => Math.Abs(s.D - size.MajorMm) < 1e-6).Name}"
                     : $"G {PipeSizes.FirstOrDefault(s => Math.Abs(s.D - size.MajorMm) < 1e-6).Name}";
         }
+    }
+
+    /// <summary>
+    /// The designation with the pitch always spelled out, as the dialog shows it
+    /// when it detects the size for a face: a coarse M10 is shown as M10x1.5.
+    /// Standards whose designation already carries the pitch (Tr, S, ACME) are
+    /// unchanged, and a pipe thread keeps its standard name.
+    /// </summary>
+    public static string FormatWithPitch(ThreadSize size)
+    {
+        if (size.Form != ThreadFormKind.Metric)
+        {
+            return Format(size);
+        }
+
+        bool multi = Math.Abs(size.LeadMm - size.PitchMm) > 1e-9;
+        return multi
+            ? $"M{Show(size.MajorMm)}xPh{Show(size.LeadMm)}P{Show(size.PitchMm)}"
+            : $"M{Show(size.MajorMm)}x{Show(size.PitchMm)}";
     }
 
     /// <summary>A number as the standards write it.</summary>
