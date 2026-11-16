@@ -29,7 +29,15 @@ void Near(string what, double got, double want, double tolerance, string unit = 
 }
 
 // ---- Inventor --------------------------------------------------------------
-Inventor.Application? app = Connect();
+// With --pid the checks run in exactly that instance. Without it they attach to
+// the instance Windows hands back, which may be one the user is working in.
+int pidIndex = Array.IndexOf(args, "--pid");
+Inventor.Application? app = pidIndex >= 0
+                            && pidIndex + 1 < args.Length
+                            && int.TryParse(args[pidIndex + 1], out int harnessPid)
+    ? Rot.FindApplication(harnessPid)
+    : Connect();
+
 if (app is null)
 {
     Console.WriteLine("FAIL  Inventor could not be reached.");
@@ -482,8 +490,9 @@ void CounterboreShoulder(Inventor.Application app, TransientGeometry geometry)
         $"{features.Count} features: {string.Join(", ", features.Select(ThreadMetadata.NameOf))}");
 
     (double threadLow, double threadHigh) = ThreadFaceRange(def);
-    Check("the thread's last whole turn runs out at the shoulder", threadLow <= 15.2,
-        $"the lowest swept face is at {threadLow:0.###} mm, the shoulder at 13 mm");
+    double reliefHigh = 13.0 + (plan.Relief is { } room ? room.EndMm - room.StartMm : 0.0);
+    Check("the thread's last whole turn runs out at the relief", threadLow <= reliefHigh + 0.2,
+        $"the lowest swept face is at {threadLow:0.###} mm, the relief starts at {reliefHigh:0.###} mm");
     Check("the thread reaches the counterbore's mouth", threadHigh > 19.0, $"{threadHigh:0.###} mm");
 
     Check("the thread took material away", Volume(def) < before,
@@ -586,8 +595,9 @@ void ButtedBodies(Inventor.Application app, TransientGeometry geometry)
         $"{features.Count} features: {string.Join(", ", features.Select(ThreadMetadata.NameOf))}");
 
     (double threadLow, double threadHigh) = ThreadFaceRange(def);
-    Check("the thread reaches the joint", threadLow < 2.5,
-        $"the lowest swept face is at {threadLow:0.###} mm, the joint at 0 mm");
+    double jointRelief = plan.Relief is { } room ? room.EndMm - room.StartMm : 0.0;
+    Check("the thread runs out at the relief above the joint", threadLow < jointRelief + 0.5,
+        $"the lowest swept face is at {threadLow:0.###} mm, the relief starts at {jointRelief:0.###} mm");
     Check("the thread reaches the mouth", threadHigh > 9.0, $"{threadHigh:0.###} mm");
 
     // The lower body's smaller hole is untouched, and keeps its own length.

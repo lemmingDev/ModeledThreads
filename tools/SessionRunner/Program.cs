@@ -142,7 +142,12 @@ internal static class Program
         }
 
         bool wait = args[0] == "--wait";
-        string commandLine = string.Join(" ", wait ? args.Skip(1).ToArray() : args);
+
+        // The command line is handed to CreateProcess whole, so a path with a
+        // space in it has to keep its quotes.
+        string commandLine = string.Join(
+            " ",
+            (wait ? args.Skip(1) : args).Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
         uint sessionId = WTSGetActiveConsoleSessionId();
         if (sessionId == 0xFFFFFFFF)
         {

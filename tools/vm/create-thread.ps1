@@ -12,18 +12,27 @@ $inv = [Runtime.InteropServices.Marshal]::GetActiveObject('Inventor.Application'
 
 $doc = $null
 foreach ($d in $inv.Documents) {
-    Note ("open document: '{0}' '{1}'" -f $d.DisplayName, $d.FullFileName)
+    Note ("open document: '{0}' '{1}' visible={2}" -f $d.DisplayName, $d.FullFileName, $d.Visible)
     if ($d.FullFileName -like '*thread.ipt') { $doc = $d }
 }
 
-if ($null -eq $doc) {
-    Note "thread.ipt is not open"
-    exit 1
+# A document opened with OpenVisible false has no window, cannot be made the
+# active one, and the command then refuses to run. Open it again, visibly.
+if ($null -ne $doc -and -not $doc.Visible) {
+    Note "closing the invisible copy"
+    $doc.Close($true)
+    $doc = $null
 }
 
+if ($null -eq $doc) {
+    Note "opening thread.ipt visibly"
+    $doc = $inv.Documents.Open('C:\Mac\Home\Documents\thread.ipt', $true)
+}
+
+$doc.Activate()
 $inv.ActiveDocument = $doc
 Start-Sleep -Seconds 1
-Note "document: $($doc.DisplayName), active: $($inv.ActiveDocument.DisplayName)"
+Note "document: $($doc.DisplayName), visible=$($doc.Visible), active: $($inv.ActiveDocument.DisplayName)"
 
 $definition = $doc.ComponentDefinition
 

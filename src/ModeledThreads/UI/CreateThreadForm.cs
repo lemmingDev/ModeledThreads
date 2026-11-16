@@ -162,7 +162,7 @@ public sealed class CreateThreadForm : Form
         _chamferEnd.Text = "Relief at a shoulder";
         _chamferEnd.Checked = true;
         _chamferEnd.AutoSize = true;
-        _tip.SetToolTip(_chamferEnd, "Takes the last turn away with a one pitch relief, so the thread runs out before the shoulder.");
+        _tip.SetToolTip(_chamferEnd, "Takes the last turn away with a relief (a pitch on a shaft, a pitch and a half in a hole), so the thread runs out before the shoulder.");
         AddRow(outer, 8, "Shoulder", _chamferEnd);
 
         _reverse.Text = "Start at the other end";

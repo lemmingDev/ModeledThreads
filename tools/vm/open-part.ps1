@@ -21,12 +21,13 @@ foreach ($d in $inv.Documents) {
 
 if ($null -eq $doc) {
     "$(Get-Date -Format HH:mm:ss) opening $path" | Out-File $out -Append -Encoding utf8
-    $doc = $inv.Documents.Open($path, $false)
+    $doc = $inv.Documents.Open($path, $true)
 }
 else {
     "$(Get-Date -Format HH:mm:ss) already open" | Out-File $out -Append -Encoding utf8
 }
 
+$doc.Activate()
 $inv.ActiveDocument = $doc
 Start-Sleep -Seconds 2
 $inv.ActiveView.Fit()

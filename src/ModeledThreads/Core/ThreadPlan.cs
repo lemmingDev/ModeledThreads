@@ -22,7 +22,7 @@ public readonly record struct ProfilePoint(double R, double Z);
 /// <summary>The 45° lead-in cone at a free end (ISO 4753).</summary>
 public readonly record struct TipCone(double RadiusMm, double DepthMm, bool Internal);
 
-/// <summary>The one pitch relief cut at a shoulder.</summary>
+/// <summary>The relief cut at a shoulder.</summary>
 public readonly record struct ShoulderRelief(
     double StartMm,
     double EndMm,
@@ -81,7 +81,7 @@ public sealed class ThreadPlanOptions
     /// <summary>The 45° lead-in at the free end the thread starts at.</summary>
     public bool ChamferStart { get; set; }
 
-    /// <summary>The one pitch relief at a shoulder.</summary>
+    /// <summary>The relief at a shoulder.</summary>
     public bool ChamferEnd { get; set; }
 }
 
@@ -173,8 +173,8 @@ public sealed class ThreadPlan
 /// The rules follow ISO 3508's runouts and the way a thread ends in practice:
 /// at a free end the groove runs a pitch past the end into the air so the thread
 /// is at full depth on the face; at a closed end it stops with its section clear
-/// of the end so it never cuts into the shoulder; at a shoulder a one pitch
-/// relief takes the last turn away.
+/// of the end so it never cuts into the shoulder; at a shoulder the relief
+/// takes the last turn away.
 /// </summary>
 public static class ThreadPlanBuilder
 {
@@ -349,12 +349,15 @@ public static class ThreadPlanBuilder
         ShoulderRelief? relief = null;
         if (o.ChamferEnd && endKind == ThreadEndKind.Shoulder)
         {
-            // One pitch high, as deep as the thread's cut plus the clearance, on the
-            // thread's side of the shoulder.
+            // As deep as the thread's cut plus the clearance, on the thread's side
+            // of the shoulder. A shaft's relief is one pitch high; a hole's is a
+            // pitch and a half, because a tap needs more room to run out than a
+            // die does.
+            double width = o.Internal ? 1.5 * p : p;
             double r0 = o.Internal ? faceR : groove.RootR;
             double r1 = o.Internal ? groove.RootR : faceR;
 
-            relief = new ShoulderRelief(faceRun - p, faceRun, Math.Min(r0, r1), Math.Max(r0, r1));
+            relief = new ShoulderRelief(faceRun - width, faceRun, Math.Min(r0, r1), Math.Max(r0, r1));
         }
 
         // ---- back to the face's own frame ------------------------------------

@@ -21,7 +21,8 @@ cut into the solid.
   or a sealing face keeps its shape and its area. A counterbore's bottom is a
   shoulder, not a blind hole, when a smaller hole carries on through it.
 * **A lead-in and a relief.** An open end gets the 45° lead-in cone; a shoulder
-  gets a one-pitch relief so the thread runs out before it.
+  gets a relief so the thread runs out before it: one pitch wide on a shaft, a
+  pitch and a half in a hole, where a tap needs more room to run out.
 * **Multi-start, left or right hand, with clearance.** 1 to 8 starts, a lead of
   pitch × starts, and a per-thread clearance that takes material off the flanks
   as well as the root.
@@ -87,7 +88,7 @@ certificate removes the prompt (see [Signing](#signing)).
 | Starts | 1 to 8; the lead becomes pitch × starts |
 | Hand | Right or left |
 | Lead-in | The 45° cone at the open end the thread starts at |
-| Shoulder | The one-pitch relief at a shoulder |
+| Shoulder | The relief at a shoulder: one pitch on a shaft, a pitch and a half in a hole |
 | Direction | Start at the other end of the face |
 
 4. **Create Thread** cuts it and closes the dialog.
@@ -119,8 +120,13 @@ one that made the thread:
 
 The old thread's features are taken out and the new ones are cut in their place,
 all in one transaction: if anything fails, the thread is left exactly as it was
-and the dialog says why. The new features keep the thread's identity, so the
-same gesture edits it again.
+and the dialog says why. The surface the thread was cut into is read again after
+the old features are gone, rather than replayed from the record, so an edit also
+picks up a corrected reading of its ends. A whole cylinder's face starts and ends
+at its seam, and the normal read there can come back from the wrong side — a
+bore reading as a shaft — so the normals are sampled away from the seam and the
+answer is the one they agree on. The new features keep the thread's identity, so
+the same gesture edits it again.
 
 The dialog knows what the thread was made with because each of its features
 carries the inputs as a small text attribute (`ModeledThreads` / `Thread`). The
@@ -135,7 +141,7 @@ A thread is two or three features:
 |---|---|
 | `Modeled Thread <size>` | The groove, as a profile of the standard's own shape swept along a helix (a coil cut) |
 | `Modeled Thread Lead-in <size>` | The 45° cone at the open end, so the first teeth engage (ISO 4753) |
-| `Modeled Thread Relief <size>` | A one-pitch revolve at a shoulder, so the thread runs out cleanly |
+| `Modeled Thread Relief <size>` | A pitch (a pitch and a half in a hole) revolve at a shoulder, so the thread runs out cleanly |
 
 The planes and axes the cuts are built on are made as **construction** features,
 so they never appear in the browser or across the part: the only things the
@@ -160,14 +166,16 @@ printed or a worn thread actually fit.
 | End | What happens |
 |---|---|
 | Free (open end) | Lead-in cone if asked for; the thread runs one pitch past the face into air |
-| Shoulder | The one-pitch relief, so the last turn ends before the face |
+| Shoulder | The relief — one pitch wide outside, a pitch and a half inside — so the last turn ends before the face |
 | Closed (hole bottom) | The thread stops one pitch short of the bottom, so a plain band of wall is left there |
 | Counterbore shoulder | A flat end with a smaller hole through it: treated as a shoulder, so the thread runs up to it and gets its relief |
 | Joint between two bodies | A flat end where a second body is butted on, with a smaller hole carrying on through it: read as a shoulder, so the thread runs up to the joint and gets its relief |
 | Inside (runs into another feature) | Treated as a shoulder |
 
 The end is read from what the hole itself meets, and a smaller hole carrying on
-through the flat end is what tells a shoulder from a bottom. Every face on the
+through the flat end is what tells a shoulder from a bottom. A hole's relief is
+wider than a shaft's because a tap has to run out past the last thread, while a
+die only needs the thread to stop. Every face on the
 end plane is looked at, not only the one the hole's wall happens to touch: a
 part can be two bodies butted together, and the smaller hole is then bored into
 the body behind. Material of another body lying beyond the end is not taken for
@@ -259,8 +267,8 @@ dotnet run --project tools/ThreadMath -c Release
 It checks every designation in every table parses and reads back as itself, the
 ISO 2904 trapezoidal numbers against the standard's tables, the plan's turn
 volume, where a thread stops at each kind of end (a pitch into the air at a free
-one, a pitch clear of a blind hole's bottom, the one-pitch relief at a shoulder),
-and that the size offered for a 10 mm shaft is an M10.
+one, a pitch clear of a blind hole's bottom, the relief at a shoulder: a pitch
+and a half wide in a hole), and that the size offered for a 10 mm shaft is an M10.
 
 **`tools/TestHarness`** — real geometry in Inventor, through the same code the
 add-in uses:
@@ -268,6 +276,10 @@ add-in uses:
 ```
 tools\TestHarness\bin\Release\ThreadHarness.exe
 ```
+
+`--pid <pid>` keeps the run in one Inventor instance: start a second, empty one
+and point the harness at it, and the checks never go near a part the user has
+open.
 
 It builds parts, cuts threads and measures what came out: the volume removed
 against the plan, the length and the end faces of the part, the flange and hole
@@ -302,9 +314,25 @@ can be looked at.
 **`tools/ThreadDoctor`** — reaches one particular Inventor instance through the
 running object table (a second, empty instance is easy to start by accident) and
 lists the documents and threads in it, with the ends it reads for each thread's
-face. `ThreadDoctor <pid> --apply "<thread name>"` re-cuts that thread in place
-through the same code as the dialog, after saving a copy of the part; that is how
-a part that is already open can be corrected without losing it.
+face.
+
+```
+ThreadDoctor <pid>                        list the threads
+ThreadDoctor <pid> --docs                 every document, with its features
+ThreadDoctor <pid> --apply "<name>"       re-cut a thread in place
+ThreadDoctor <pid> --apply "<name>" --designation M33x1.5
+ThreadDoctor <pid> --create M33x1.5 --radius 15 [--external]
+ThreadDoctor <pid> --open <path> ...      open a part first
+ThreadDoctor <pid> --quit                 close without saving, and quit
+```
+
+`--apply` goes through the same code as the dialog after saving a copy of the
+part, so a part that is already open can be corrected without losing it;
+`--designation` gives the re-cut a size other than the one it had. `--create`
+cuts a new thread on the longest face of the given radius, on the inside or, with
+`--external`, the outside: that is how a part whose unsaved threads were lost
+can be put back without the dialog. `--quit` is for a test instance started for
+`--pid`.
 
 `tools/vm` holds the scripts used to drive all of this inside a Windows VM from
 the host: running the harness in the user's desktop session, opening a part,

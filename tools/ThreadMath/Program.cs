@@ -201,8 +201,9 @@ Console.WriteLine("== where a thread stops at each kind of end ==");
     Check("a closed end is threaded less than the hole is deep",
         blind.SweepLengthMm < 15.0, $"{blind.SweepLengthMm:0.###} mm of 15 mm");
 
-    // A shoulder: the thread runs on to the face, and the one pitch relief
-    // takes the last turn away.
+    // A shoulder: the thread runs on to the face, and the relief takes the last
+    // turn away. The hole is cut one and a half pitches deep, so a tap has room
+    // to run out; a shaft keeps its one pitch.
     ThreadPlan shoulder = ThreadPlanBuilder.Build(
         Ends(0, 15, ThreadEndKind.Free, ThreadEndKind.Shoulder, relief: true));
     Near("a shoulder's thread runs up to the face",
@@ -210,8 +211,33 @@ Console.WriteLine("== where a thread stops at each kind of end ==");
     Check("a shoulder gets a relief", shoulder.Relief is not null);
     if (shoulder.Relief is { } relief)
     {
-        Near("the relief is one pitch deep", relief.EndMm - relief.StartMm, 1.5);
-        Near("the relief starts one pitch before the shoulder", relief.StartMm, 13.5);
+        Near("the relief is a pitch and a half deep", relief.EndMm - relief.StartMm, 2.25);
+        Near("the relief starts a pitch and a half before the shoulder", relief.StartMm, 12.75);
+    }
+
+    // A shaft keeps the one-pitch relief: a die does not need the tap's runout.
+    ThreadPlan shaft = ThreadPlanBuilder.Build(new ThreadPlanOptions
+    {
+        Form = ThreadFormKind.Metric,
+        Designation = "M10x1.5",
+        MajorMm = 10,
+        PitchMm = 1.5,
+        LeadMm = 1.5,
+        Internal = false,
+        FaceRadiusMm = 5,
+        FaceLowMm = 0,
+        FaceHighMm = 15,
+        StartSide = 0,
+        LowEndKind = ThreadEndKind.Free,
+        HighEndKind = ThreadEndKind.Shoulder,
+        ChamferEnd = true
+    });
+
+    Check("a shaft's shoulder gets a relief", shaft.Relief is not null);
+    if (shaft.Relief is { } shaftRelief)
+    {
+        Near("a shaft's relief is one pitch deep", shaftRelief.EndMm - shaftRelief.StartMm, 1.5);
+        Near("a shaft's relief starts one pitch before the shoulder", shaftRelief.StartMm, 13.5);
     }
 }
 

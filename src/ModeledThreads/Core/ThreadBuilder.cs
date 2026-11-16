@@ -216,8 +216,9 @@ public sealed class ThreadBuilder
     }
 
     /// <summary>
-    /// The relief at a shoulder: one pitch high, as deep as the thread's cut, so
-    /// the last turn runs out before the shoulder.
+    /// The relief at a shoulder: a pitch high on a shaft, a pitch and a half in
+    /// a hole, as deep as the thread's cut, so the last turn runs out before the
+    /// shoulder.
     /// </summary>
     private void CutRelief(
         ThreadPlan plan,

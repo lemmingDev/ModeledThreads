@@ -203,38 +203,55 @@ public static class FaceProbeReader
     {
         normalIsOutward = true;
 
-        try
-        {
-            Point onFace = face.PointOnFace;
-            double[]? normal = FaceNormal(face, onFace);
-            if (normal is not null)
-            {
-                double t = Project(onFace, basePoint, axis);
-                Point axisPoint = geometry.CreatePoint(
-                    basePoint.X + axis.X * t,
-                    basePoint.Y + axis.Y * t,
-                    basePoint.Z + axis.Z * t);
+        // A whole cylinder's face starts and ends at its seam, and the normal
+        // read there can come back with the wrong side of the surface: a bore
+        // then reads as a shaft, which is the one mistake that must not happen.
+        // The middle of the face's parameter range is away from the seam, so
+        // the normals are read there, and the answer is the one they agree on.
+        int inward = 0;
+        int outward = 0;
 
-                double rx = onFace.X - axisPoint.X;
-                double ry = onFace.Y - axisPoint.Y;
-                double rz = onFace.Z - axisPoint.Z;
-                double radialLength = Math.Sqrt(rx * rx + ry * ry + rz * rz);
-                if (radialLength > 1e-9)
-                {
-                    double dot = (normal[0] * rx + normal[1] * ry + normal[2] * rz) / radialLength;
-                    if (Math.Abs(dot) > 0.5)
-                    {
-                        // The face's normal points away from the axis: the material
-                        // is inside the cylinder, so this is a shaft.
-                        normalIsOutward = dot > 0;
-                        return dot < 0;
-                    }
-                }
+        foreach (double fraction in new[] { 0.5, 0.25, 0.75 })
+        {
+            Point? sample = PointAt(face, geometry, fraction) ?? face.PointOnFace;
+            double[]? normal = FaceNormal(face, sample);
+            if (normal is null)
+            {
+                continue;
+            }
+
+            double t = Project(sample, basePoint, axis);
+            double rx = sample.X - (basePoint.X + axis.X * t);
+            double ry = sample.Y - (basePoint.Y + axis.Y * t);
+            double rz = sample.Z - (basePoint.Z + axis.Z * t);
+            double radialLength = Math.Sqrt((rx * rx) + (ry * ry) + (rz * rz));
+            if (radialLength < 1e-9)
+            {
+                continue;
+            }
+
+            double dot = ((normal[0] * rx) + (normal[1] * ry) + (normal[2] * rz)) / radialLength;
+            if (Math.Abs(dot) <= 0.5)
+            {
+                continue;
+            }
+
+            // The face's normal points away from the axis: the material is
+            // inside the cylinder, so this is a shaft.
+            if (dot > 0)
+            {
+                outward++;
+            }
+            else
+            {
+                inward++;
             }
         }
-        catch (Exception ex)
+
+        if (inward + outward > 0)
         {
-            Log.Warn($"Could not read the face's normal: {ex.Message}");
+            normalIsOutward = outward >= inward;
+            return inward > outward;
         }
 
         // Fall back on the geometry: a hole's face is a reversed surface.
@@ -465,6 +482,29 @@ public static class FaceProbeReader
     }
 
     /// <summary>The face's normal at a point, as an x,y,z array.</summary>
+    /// <summary>
+    /// A point on the face at the given fraction of its parameter range, or
+    /// null when the range cannot be read.
+    /// </summary>
+    private static Point? PointAt(Face face, TransientGeometry geometry, double fraction)
+    {
+        try
+        {
+            Box2d range = face.Evaluator.ParamRangeRect;
+            double u = range.MinPoint.X + ((range.MaxPoint.X - range.MinPoint.X) * fraction);
+            double v = (range.MinPoint.Y + range.MaxPoint.Y) / 2.0;
+            double[] parameters = { u, v };
+            double[] output = new double[3];
+            face.Evaluator.GetPointAtParam(ref parameters, ref output);
+            return geometry.CreatePoint(output[0], output[1], output[2]);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not read a point on the face: {ex.Message}");
+            return null;
+        }
+    }
+
     private static double[]? FaceNormal(Face face, Point point)
     {
         try

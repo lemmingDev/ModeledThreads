@@ -32,4 +32,8 @@
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="All" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="../Shared/Rot.cs" Link="Rot.cs" />
+  </ItemGroup>
+
 </Project>
