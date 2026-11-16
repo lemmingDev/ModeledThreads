@@ -304,13 +304,13 @@ that no feature of the old size is left, and that the same thread — same id, s
 number of features — is the only one in the part. That is done twice: once on a
 shaft and once in a hole, for an internal thread.
 
-109 checks, and it saves `C:\Temp\demo-plain.ipt` (a clean shaft),
-`C:\Temp\demo-nut-plain.ipt` (a clean hole), `C:\Temp\demo-blind-plain.ipt` (a
-clean blind hole), `C:\Temp\demo-tube-plain.ipt` (a clean tube),
-`C:\Temp\demo-bolt.ipt` (a threaded shaft), `C:\Temp\demo-nut.ipt` (a threaded
-nut), `C:\Temp\demo-tube.ipt` (threaded inside and out) and
-`C:\Temp\demo-edit.ipt` (a shaft whose thread was edited in place) so the result
-can be looked at.
+109 checks, and it saves copies in `%TEMP%\ModeledThreads demos`:
+`demo-plain.ipt` (a clean shaft), `demo-nut-plain.ipt` (a clean hole),
+`demo-blind-plain.ipt` (a clean blind hole), `demo-tube-plain.ipt` (a clean
+tube), `demo-bolt.ipt` (a threaded shaft), `demo-nut.ipt` (a threaded nut),
+`demo-tube.ipt` (threaded inside and out) and `demo-edit.ipt` (a shaft whose
+thread was edited in place) so the result can be looked at. The temporary folder
+is writable on any machine, which `C:\Temp` is not.
 
 **`tools/ThreadDoctor`** — reaches one particular Inventor instance through the
 running object table (a second, empty instance is easy to start by accident) and

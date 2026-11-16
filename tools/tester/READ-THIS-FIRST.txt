@@ -1,0 +1,122 @@
+Modeled Threads - please test on Inventor 2025 or 2026
+=======================================================
+
+Thank you. This pack checks one thing: whether the same add-in that works on
+Inventor 2027 also works on your Inventor. It takes about ten minutes, and at
+the end you send back one text file.
+
+You need Inventor 2025 or 2026 on Windows 10 or 11, 64-bit. No administrator
+rights, nothing else to install.
+
+
+Step 1 - unblock the zip before extracting
+------------------------------------------
+
+Windows marks files that arrived from elsewhere, and it will silently refuse to
+load the add-in if the DLL stays marked. So:
+
+  1. Save the zip somewhere like your Downloads folder.
+  2. Right-click the zip, choose Properties, tick "Unblock", click OK.
+  3. Right-click again, Extract All.
+  4. Work in the extracted folder, not inside the zip.
+
+If you skip this, the add-in will not appear and Inventor gives no reason.
+
+
+Step 2 - install the add-in
+---------------------------
+
+Close Inventor first. Then double-click:
+
+  install.bat
+
+It copies the add-in into your own Windows profile. It writes nothing to
+Program Files and needs no admin rights.
+
+If Inventor shows "Add-in Manager Security Alert" the first time it starts,
+click "Launch Add-in Manager", pick "Modeled Threads", click "Unblock", OK.
+That happens once per user.
+
+
+Step 3 - look at it by hand (about five minutes)
+------------------------------------------------
+
+  1. Start Inventor and open a part that has a cylindrical face - a shaft or a
+     plain hole. A copy of a real part is fine; do not test on a part you care
+     about.
+
+  2. Select the cylindrical face, then click the "Modeled Threads" tab and
+     "Create Thread".
+
+     If the tab shows only one small button with the word "Threads" under it,
+     your ribbon is in its collapsed display mode. Double-click any ribbon tab
+     to expand it. That is Inventor's setting, not the add-in's.
+
+  3. The dialog fills itself in for the face. Check the size box: it should
+     spell out the pitch, for example M10x1.5 rather than a bare M10. Please
+     note what it shows.
+
+  4. Press "Create Thread". A real thread is cut into the solid - look at it
+     close up, it should have a proper profile, not a painted texture.
+
+  5. In the browser, the part now has a thread node. Double-click it, or
+     use "Edit Thread" on the ribbon. The dialog should open again on that
+     thread, with the same size, ready to change.
+
+  6. Close the part without saving.
+
+Anything odd is worth reporting: a crash, an error box, a thread in the wrong
+place, a face that was damaged, or the size box showing a bare M10.
+
+
+Step 4 - run the automated checks
+---------------------------------
+
+The pack also carries the same tests that were run on 2027: 109 checks that
+build their own parts, cut threads, and measure what came out. They do not
+touch documents you have open.
+
+  1. Start Inventor and leave it on screen. Any document, or none.
+  2. Double-click:  test\run-tests.bat
+  3. Wait. It takes two to four minutes and prints a lot of lines. Do not
+     close Inventor while it runs.
+
+It ends with either
+
+  ALL 109 CHECKS PASSED
+
+or a count of failures, with the failing lines marked FAIL.
+
+The window then tells you where the report went: a file in the "report"
+folder named after your computer.
+
+
+Step 5 - send back
+------------------
+
+Send the newest file in the "report" folder. It is a text file containing:
+
+  - your Windows and Inventor version
+  - the version of the add-in that was installed
+  - the check results
+  - the last part of the add-in's log
+
+If the folder also has a .log file, send that too. Nothing else is collected,
+and no model geometry leaves your machine.
+
+
+If something goes wrong
+-----------------------
+
+"Inventor is not running" - start Inventor, wait until it has finished loading
+(it may still be opening a document), then run test\run-tests.bat again.
+
+The add-in is missing from the ribbon - the zip was probably extracted while
+still blocked. Delete the extracted folder, unblock the zip as in step 1, and
+extract again. Then run install.bat once more.
+
+You want it gone afterwards - close Inventor and delete this folder:
+
+  %APPDATA%\Autodesk\ApplicationPlugins\ModeledThreads.bundle
+
+Nothing else was changed on your machine.

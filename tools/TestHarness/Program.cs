@@ -11,6 +11,11 @@ using ModeledThreads.Core;
 int failures = 0;
 int checks = 0;
 
+// The demo parts are for trying the dialog by hand. %TEMP% always exists and
+// is writable; C:\Temp may not be either on someone else's machine.
+string DemoDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ModeledThreads demos");
+Directory.CreateDirectory(DemoDir);
+
 void Check(string what, bool ok, string detail = "")
 {
     checks++;
@@ -342,7 +347,7 @@ void InternalBlind(Inventor.Application app, TransientGeometry geometry)
     // A copy with no thread on it, for trying the dialog on a blind hole.
     try
     {
-        doc.SaveAs(@"C:\Temp\demo-blind-plain.ipt", true);
+        doc.SaveAs(System.IO.Path.Combine(DemoDir, "demo-blind-plain.ipt"), true);
     }
     catch (Exception ex)
     {
@@ -749,7 +754,7 @@ void Demo(Inventor.Application app, TransientGeometry geometry)
     // A copy with no thread on it, for trying the dialog on a clean face.
     try
     {
-        doc.SaveAs(@"C:\Temp\demo-plain.ipt", true);
+        doc.SaveAs(System.IO.Path.Combine(DemoDir, "demo-plain.ipt"), true);
     }
     catch (Exception ex)
     {
@@ -760,9 +765,9 @@ void Demo(Inventor.Application app, TransientGeometry geometry)
 
     try
     {
-        doc.SaveAs(@"C:\Temp\demo-bolt.ipt", true);
+        doc.SaveAs(System.IO.Path.Combine(DemoDir, "demo-bolt.ipt"), true);
         app.ActiveView.Fit();
-        Console.WriteLine("      saved C:\\Temp\\demo-bolt.ipt and left it open");
+        Console.WriteLine($"      saved {System.IO.Path.Combine(DemoDir, "demo-bolt.ipt")} and left it open");
     }
     catch (Exception ex)
     {
@@ -786,7 +791,7 @@ void Tube(Inventor.Application app, TransientGeometry geometry)
 
     try
     {
-        doc.SaveAs(@"C:\Temp\demo-tube-plain.ipt", true);
+        doc.SaveAs(System.IO.Path.Combine(DemoDir, "demo-tube-plain.ipt"), true);
     }
     catch (Exception ex)
     {
@@ -871,8 +876,8 @@ void Tube(Inventor.Application app, TransientGeometry geometry)
 
     try
     {
-        doc.SaveAs(@"C:\Temp\demo-tube.ipt", true);
-        Console.WriteLine("      saved C:\\Temp\\demo-tube.ipt");
+        doc.SaveAs(System.IO.Path.Combine(DemoDir, "demo-tube.ipt"), true);
+        Console.WriteLine($"      saved {System.IO.Path.Combine(DemoDir, "demo-tube.ipt")}");
     }
     catch (Exception ex)
     {
@@ -1014,8 +1019,8 @@ void Edit(Inventor.Application app, TransientGeometry geometry)
 
     try
     {
-        doc.SaveAs(@"C:\Temp\demo-edit.ipt", true);
-        Console.WriteLine("      saved C:\\Temp\\demo-edit.ipt");
+        doc.SaveAs(System.IO.Path.Combine(DemoDir, "demo-edit.ipt"), true);
+        Console.WriteLine($"      saved {System.IO.Path.Combine(DemoDir, "demo-edit.ipt")}");
     }
     catch (Exception ex)
     {
@@ -1122,7 +1127,7 @@ void DemoNut(Inventor.Application app, TransientGeometry geometry)
     // A copy with no thread on it, for trying the dialog on a hole.
     try
     {
-        doc.SaveAs(@"C:\Temp\demo-nut-plain.ipt", true);
+        doc.SaveAs(System.IO.Path.Combine(DemoDir, "demo-nut-plain.ipt"), true);
     }
     catch (Exception ex)
     {
@@ -1133,8 +1138,8 @@ void DemoNut(Inventor.Application app, TransientGeometry geometry)
 
     try
     {
-        doc.SaveAs(@"C:\Temp\demo-nut.ipt", true);
-        Console.WriteLine("      saved C:\\Temp\\demo-nut.ipt");
+        doc.SaveAs(System.IO.Path.Combine(DemoDir, "demo-nut.ipt"), true);
+        Console.WriteLine($"      saved {System.IO.Path.Combine(DemoDir, "demo-nut.ipt")}");
     }
     catch (Exception ex)
     {
