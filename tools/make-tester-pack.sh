@@ -18,8 +18,9 @@ pack="$stage/ModeledThreads-Tester"
 mkdir -p "$pack/test" "$pack/report"
 
 cp -R "$root/bundle" "$pack/"
-cp "$root/install.bat" "$root/install.ps1" "$pack/"
+cp "$root/install.ps1" "$pack/"
 cp "$root/tools/tester/READ-THIS-FIRST.txt" "$pack/"
+cp "$root/tools/tester/START-HERE.bat" "$root/tools/tester/start-here.ps1" "$pack/"
 cp "$root/tools/tester/run-tests.bat" "$root/tools/tester/run-tests.ps1" "$pack/test/"
 
 harness="$root/tools/TestHarness/bin/Release"
