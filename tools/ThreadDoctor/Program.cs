@@ -169,8 +169,12 @@ foreach (PartFeature feature in definition.Features)
 
     if (probe is null)
     {
-        Console.WriteLine("  nothing was changed: the face could not be read.");
-        return 1;
+        // A hole's thread can use up the whole cylindrical surface between its
+        // turns, so there is no face of that radius left to read while the
+        // thread is in the part. The edit re-reads the face after the old
+        // features are taken out, which is where the bore comes back.
+        Console.WriteLine("  the face is not a cylinder while the thread is in the part; "
+            + "it is read again after the old features are taken out");
     }
 
     double before = part.ComponentDefinition.MassProperties.Volume * 1000.0;
