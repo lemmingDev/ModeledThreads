@@ -3,7 +3,8 @@
     Builds the Modeled Threads add-in and refreshes the ready-to-install bundle.
 
 .DESCRIPTION
-    Needs a .NET SDK on the build machine (any 6.0 or newer). The add-in itself
+    Needs a .NET SDK on the build machine (10.0 or newer: the harness builds with
+    6.0, but tools/ThreadMath targets net10.0). The add-in itself
     targets .NET Framework 4.8, which every Windows 10 and 11 machine already
     has, so nothing has to be installed on the machine that runs Inventor.
 

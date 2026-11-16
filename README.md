@@ -246,7 +246,8 @@ the reason is in there.
 ./build.ps1 -SkipHarness    # the add-in alone
 ```
 
-Needs a .NET SDK (6.0 or newer) on the build machine. The add-in targets
+Needs a .NET SDK (10.0 or newer) on the build machine: the add-in and harness
+would build with 6.0, but `tools/ThreadMath` targets `net10.0`. The add-in targets
 **.NET Framework 4.8**, which is why nothing has to be installed on the machine
 that runs Inventor; the SDK is only needed to compile.
 
