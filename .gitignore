@@ -15,3 +15,12 @@ Thumbs.db
 
 # Local test artifacts
 *.log
+
+# Release output and signing material
+/dist/
+/certs/
+*.pfx
+release-notes.md
+
+# The interop's API documentation is 11 MB and nothing builds against it
+/refs/*/Autodesk.Inventor.Interop.xml

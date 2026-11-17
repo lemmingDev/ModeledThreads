@@ -8,7 +8,11 @@
 ; user's own profile unless the machine is set up for all users.
 
 #define AppName "Modeled Threads"
-#define AppVersion "1.0.0"
+#ifndef AppVersion
+  ; The release passes -DAppVersion=<version>; a plain `iscc installer.iss`
+  ; falls back to this.
+  #define AppVersion "1.0.0"
+#endif
 #define AppPublisher "Modeled Threads"
 
 [Setup]
@@ -26,6 +30,7 @@ SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
 UninstallDisplayName={#AppName}
+LicenseFile=LICENSE
 ChangesEnvironment=no
 WizardStyle=modern
 
@@ -35,6 +40,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Files]
 Source: "bundle\ModeledThreads.bundle\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Run]
 Filename: "{app}\README.md"; Description: "Read the notes"; Flags: postinstall shellexec skipifsilent unchecked

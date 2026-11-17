@@ -40,8 +40,15 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(InventorInteropDir)' == ''">
-    <PackageReference Include="Autodesk.Inventor.Sdk" Version="2.0.3" />
+    <!-- refs/ carries the interop, so the check below only fires when it is
+         missing. There is no NuGet fallback worth having: the package on offer
+         targets .NET 8 add-ins and cannot build a .NET Framework 4.8 one. -->
   </ItemGroup>
+
+  <Target Name="CheckInventorInterop" BeforeTargets="PrepareForBuild"
+          Condition="'$(InventorInteropDir)' == ''">
+    <Error Text="No Inventor interop for $(InventorVersion): expected refs/$(InventorVersion)/Autodesk.Inventor.Interop.dll. Restore that folder, or pass -p:InventorInteropDir=&lt;folder&gt;." />
+  </Target>
 
   <ItemGroup>
     <!-- Late binding to the feature types, which the interop gives no shared base. -->

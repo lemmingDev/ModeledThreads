@@ -1,0 +1,108 @@
+name: Build
+
+# Every push and pull request compiles the add-in for all three Inventor
+# releases. The catalogue and maths checks run here too, so a broken size table
+# or profile is caught before anyone launches Inventor.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  add-in:
+    name: Inventor ${{ matrix.inventor }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 2025 is the shipped build: the oldest interop, so one DLL runs on all
+        # three. 2026 and 2027 are compiled too, which is what catches an API or
+        # a signature that only exists in the newer ones.
+        inventor: [ '2025', '2026', '2027' ]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build the add-in
+        shell: pwsh
+        run: ./build.ps1 -InventorVersion ${{ matrix.inventor }} -SkipHarness
+
+      - name: Build the Inventor harness
+        if: matrix.inventor == '2025'
+        shell: pwsh
+        run: |
+          dotnet build tools/TestHarness/TestHarness.csproj -c Release --nologo `
+            -p:InventorVersion=2025
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Keep the bundle
+        if: matrix.inventor == '2025'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle
+          path: bundle/ModeledThreads.bundle/**
+          if-no-files-found: error
+
+  checks:
+    name: Maths and catalogue
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Check every designation, table and plan
+        shell: pwsh
+        run: |
+          dotnet run --project tools/ThreadMath/ThreadMath.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  installer:
+    name: Installer
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build the add-in
+        shell: pwsh
+        run: ./build.ps1 -SkipHarness
+
+      - name: Compile installer.iss
+        shell: pwsh
+        run: |
+          $iscc = Get-Command iscc.exe -ErrorAction SilentlyContinue
+          if (-not $iscc) {
+            Write-Warning 'Inno Setup is not on this runner, so the installer was not compiled.'
+            exit 0
+          }
+
+          & $iscc.Source '/DAppVersion=1.0.0' '/Odist' installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Keep the installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: dist/ModeledThreads-Setup.exe
+          if-no-files-found: warn

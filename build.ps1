@@ -28,6 +28,10 @@
 
 .PARAMETER SkipHarness
     Do not build the COM test harness in tools/TestHarness.
+
+.PARAMETER Version
+    Version stamped into the assembly (default: whatever
+    Directory.Build.props says). The release workflow passes the tag's version.
 #>
 [CmdletBinding()]
 param(
@@ -39,7 +43,9 @@ param(
     [ValidateSet('Debug', 'Release')]
     [string] $Configuration = 'Release',
 
-    [switch] $SkipHarness
+    [switch] $SkipHarness,
+
+    [string] $Version = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -62,19 +68,22 @@ Write-Host "Using $dotnet"
 $common = @('--nologo', '-v', 'minimal', '-c', $Configuration,
             "-p:InventorVersion=$InventorVersion")
 if ($InventorInteropDir) { $common += "-p:InventorInteropDir=$InventorInteropDir" }
+if ($Version) { $common += "-p:AppVersion=$Version" }
 
-$project = Join-Path $root 'src\ModeledThreads\ModeledThreads.csproj'
+# [IO.Path] rather than a literal backslash path, so the script also runs on
+# the macOS and Linux machines the project is developed on.
+$project = [IO.Path]::Combine($root, 'src', 'ModeledThreads', 'ModeledThreads.csproj')
 & $dotnet build $project @common
 if ($LASTEXITCODE -ne 0) { throw "Add-in build failed with exit code $LASTEXITCODE." }
 
 if (-not $SkipHarness) {
-    $harness = Join-Path $root 'tools\TestHarness\TestHarness.csproj'
+    $harness = [IO.Path]::Combine($root, 'tools', 'TestHarness', 'TestHarness.csproj')
     & $dotnet build $harness @common
     if ($LASTEXITCODE -ne 0) { throw "Harness build failed with exit code $LASTEXITCODE." }
 }
 
-$contents = Join-Path $root 'bundle\ModeledThreads.bundle\Contents'
-$built = Join-Path $root "src\ModeledThreads\bin\$Configuration"
+$contents = [IO.Path]::Combine($root, 'bundle', 'ModeledThreads.bundle', 'Contents')
+$built = [IO.Path]::Combine($root, 'src', 'ModeledThreads', 'bin', $Configuration)
 
 Copy-Item (Join-Path $built 'ModeledThreads.dll') $contents -Force
 
@@ -84,7 +93,7 @@ if (-not (Test-Path $dll)) { throw "Build finished but $dll is missing." }
 $info = Get-Item $dll
 $hash = (Get-FileHash $dll -Algorithm SHA256).Hash
 Write-Host ''
-Write-Host "Bundle : $(Join-Path $root 'bundle\ModeledThreads.bundle')"
+Write-Host "Bundle : $([IO.Path]::Combine($root, 'bundle', 'ModeledThreads.bundle'))"
 Write-Host ("DLL    : {0}  ({1:N0} bytes, {2:yyyy-MM-dd HH:mm})" -f $info.Name, $info.Length, $info.LastWriteTime)
 Write-Host "SHA256 : $hash"
 Write-Host ''

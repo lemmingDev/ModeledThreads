@@ -1,5 +1,9 @@
 # Modeled Threads for Autodesk Inventor 2025–2027
 
+[![Build](https://github.com/jwill872/ModeledThreads/actions/workflows/ci.yml/badge.svg)](https://github.com/jwill872/ModeledThreads/actions/workflows/ci.yml)
+[![Release](https://github.com/jwill872/ModeledThreads/actions/workflows/release.yml/badge.svg)](https://github.com/jwill872/ModeledThreads/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Cuts a **real, modelled thread** into any cylindrical face — a shaft, a boss, a
 through hole or the wall of a blind hole. There is no cosmetic thread to create
 first and nothing to convert: pick the face, choose a size, and the thread is
@@ -49,14 +53,27 @@ M10 × 1.5 in the hole, with the wall between them untouched.</i></p>
 
 ## Installing
 
-Three ways, all of them per user with no administrator rights:
+Download from the [latest release](https://github.com/jwill872/ModeledThreads/releases/latest):
+
+| File | What it is |
+|---|---|
+| `ModeledThreads-Setup.exe` | The installer: per user, no administrator rights |
+| `ModeledThreads-Deploy.zip` | The add-in as a folder, with `install.bat` and `install.ps1` |
+| `ModeledThreads-Tester-2025-2026.zip` | The add-in plus the 109 automated checks, for testing on your own Inventor |
+| `SHA256SUMS.txt` and `ModeledThreads.cer` | A hash per file, and the public certificate |
+
+Unblock the zip before extracting it (right-click → Properties → Unblock), or
+Windows will refuse to load the DLL and Inventor will not say why.
+
+From the folder, three ways, all of them per user with no administrator rights:
 
 1. **Double-click `install.bat`.** It copies `bundle\ModeledThreads.bundle` into
    `%APPDATA%\Autodesk\ApplicationPlugins`, where Inventor looks for add-ins.
 2. **`powershell -ExecutionPolicy Bypass -File install.ps1`** — the same thing,
    with a hash printed at the end. Add `-Uninstall` to remove it.
-3. **`ModeledThreads-Setup.exe`** — compile `installer.iss` with Inno Setup
-   (`iscc installer.iss`) for a signed-able, one-click installer.
+3. **`ModeledThreads-Setup.exe`** — a one-click installer with an entry in
+   *Apps & features* to uninstall it again. In this repository,
+   `tools/release.ps1` compiles it from `installer.iss` with Inno Setup.
 
 Inventor must be closed while installing: it holds the DLL open while it runs.
 
@@ -254,6 +271,39 @@ that runs Inventor; the SDK is only needed to compile.
 The build copies `ModeledThreads.dll` into `bundle/ModeledThreads.bundle/Contents`,
 so that folder is always the thing to install or zip.
 
+`refs/` holds the three Autodesk interop assemblies, so a build needs no Inventor
+install. The `Autodesk.Inventor.Sdk` package on NuGet targets .NET 8 add-ins and
+cannot compile a .NET Framework 4.8 one, which is why the interops are in the
+repository rather than restored. They are Autodesk's files, used only to
+compile.
+
+GitHub Actions builds against all three interops and runs the maths checks on
+every push (`.github/workflows/ci.yml`), so a change that only works on one
+Inventor shows up before a release.
+
+## Releasing
+
+Tag a commit and the release workflow does the rest:
+
+```
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+It builds and checks, signs, stamps the version into the bundle, makes the two
+zips and the installer, writes `SHA256SUMS.txt`, and publishes them as a GitHub
+release. `docs/SIGNING.md` explains the signing.
+
+To make the same files on your own machine:
+
+```
+pwsh ./tools/release.ps1 -Version 1.0.0
+pwsh ./tools/release.ps1 -Version 1.0.0 -CertPath certs\ModeledThreads.pfx -CertPassword <password>
+```
+
+They land in `dist/`. Without Inno Setup on the machine the installer is skipped
+with a warning, and without `-CertPath` nothing is signed.
+
 ## Testing
 
 Two harnesses, both worth running after any change to the profile or the plan:
@@ -353,16 +403,16 @@ It prints the pid and, with `--wait`, the exit code. That is what makes
 
 ## Signing
 
-To remove the first-run security prompt, sign the DLL with a certificate
-Windows trusts:
+Every release is signed in Actions: the DLL, the harness and the installer. Until
+the project is accepted by [SignPath's free signing for
+open-source projects](https://signpath.org/), the certificate is self-signed. The
+signature is real and proves the files are exactly what the workflow built, but
+Windows still shows the publisher as unknown, because no certificate authority
+vouches for it yet.
 
-```
-signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 ^
-    /f mycert.pfx /p <password> bundle\ModeledThreads.bundle\Contents\ModeledThreads.dll
-```
-
-Sign after `build.ps1` has copied the DLL into the bundle, and before making the
-installer.
+[docs/SIGNING.md](docs/SIGNING.md) covers checking a download, trusting the
+certificate on your own machine, making the signing certificate, and switching to
+SignPath.
 
 ## Code layout
 
@@ -381,3 +431,7 @@ installer.
 
 The split matters: everything above `ThreadBuilder.cs` is plain maths with no
 Inventor types, which is what makes `tools/ThreadMath` possible.
+
+## Licence
+
+[MIT](LICENSE).

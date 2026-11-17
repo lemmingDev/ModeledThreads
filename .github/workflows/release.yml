@@ -1,0 +1,221 @@
+name: Release
+
+# Pushing a tag like v1.0.0 builds, checks, signs and publishes everything:
+#
+#   ModeledThreads-Deploy.zip             the add-in, for end users
+#   ModeledThreads-Tester-2025-2026.zip   the add-in plus the 109 checks
+#   ModeledThreads-Setup.exe              the per-user installer
+#   ModeledThreads.cer                    the public certificate, for trusting it
+#   SHA256SUMS.txt                        a hash of each file above
+#
+# Signing uses the certificate in the repository secrets when it is there, and
+# an ephemeral self-signed one otherwise. docs/SIGNING.md explains both, and how
+# to move to SignPath's free signing for open-source projects.
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build, like 1.0.0 (artifacts only, no release)'
+        required: true
+
+permissions:
+  contents: write       # creating the release
+  id-token: write       # build provenance attestation
+  attestations: write
+
+jobs:
+  release:
+    name: Build, sign and publish
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # ------------------------------------------------------------------ version
+      - name: Work out the version
+        id: version
+        shell: pwsh
+        run: |
+          $version = '${{ github.event.inputs.version }}'
+          if (-not $version) { $version = '${{ github.ref_name }}' }
+
+          $version = $version -replace '^v', ''
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "'$version' is not a version of the form 1.2.3. Tag the release as v1.2.3."
+          }
+
+          Write-Host "Releasing $version"
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      # ------------------------------------------------------------------ signing
+      - name: Prepare the signing certificate
+        id: cert
+        shell: pwsh
+        env:
+          SIGNING_PFX_BASE64: ${{ secrets.SIGNING_PFX_BASE64 }}
+          SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'signing'
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          $pfx = Join-Path $dir 'signing.pfx'
+          $passwordFile = Join-Path $dir 'password.txt'
+
+          if ($env:SIGNING_PFX_BASE64) {
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGNING_PFX_BASE64))
+            Set-Content -LiteralPath $passwordFile -Value $env:SIGNING_PFX_PASSWORD -NoNewline
+            Write-Host 'Signing with the certificate stored in the repository secrets.'
+          }
+          else {
+            # No secret yet: sign with a throwaway certificate made here. The
+            # files are signed and tamper-evident, but Windows does not trust
+            # the issuer, so the publisher still reads as unknown.
+            $password = [Convert]::ToBase64String(
+              [Security.Cryptography.RandomNumberGenerator]::GetBytes(24))
+            $secure = ConvertTo-SecureString -String $password -AsPlainText -Force
+
+            $cert = New-SelfSignedCertificate `
+              -Type CodeSigningCert `
+              -Subject 'CN=Modeled Threads (self-signed), O=Modeled Threads' `
+              -KeyExportPolicy Exportable `
+              -KeyUsage DigitalSignature `
+              -CertStoreLocation 'Cert:\CurrentUser\My' `
+              -NotAfter (Get-Date).AddYears(5)
+
+            Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $secure | Out-Null
+            Set-Content -LiteralPath $passwordFile -Value $password -NoNewline
+
+            Write-Warning 'No SIGNING_PFX_BASE64 secret: signing with an ephemeral self-signed certificate.'
+          }
+
+          "path=$pfx" >> $env:GITHUB_OUTPUT
+          "password_file=$passwordFile" >> $env:GITHUB_OUTPUT
+
+      # ------------------------------------------------------------------ build
+      - name: Build, check, sign and package
+        shell: pwsh
+        run: |
+          $password = (Get-Content -LiteralPath '${{ steps.cert.outputs.password_file }}' -Raw).Trim()
+          ./tools/release.ps1 `
+            -Version '${{ steps.version.outputs.version }}' `
+            -CertPath '${{ steps.cert.outputs.path }}' `
+            -CertPassword $password
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # ------------------------------------------------------------------ verify
+      - name: Check what was built is signed
+        shell: pwsh
+        run: |
+          $files = @(
+            'bundle/ModeledThreads.bundle/Contents/ModeledThreads.dll',
+            'dist/ModeledThreads-Setup.exe'
+          ) | Where-Object { Test-Path -LiteralPath $_ }
+
+          $unsigned = 0
+          foreach ($file in $files) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $file
+            $subject = if ($signature.SignerCertificate) { $signature.SignerCertificate.Subject } else { '(none)' }
+            Write-Host ('{0}: {1}  {2}' -f $file, $signature.Status, $subject)
+            if ($null -eq $signature.SignerCertificate) { $unsigned++ }
+          }
+
+          if ($unsigned -ne 0) { throw "$unsigned file(s) came out unsigned." }
+
+      - name: Check the checksums agree with the files
+        shell: pwsh
+        run: |
+          $bad = 0
+          Get-Content -LiteralPath dist/SHA256SUMS.txt | ForEach-Object {
+            $parts = $_ -split '  ', 2
+            $hash = (Get-FileHash -LiteralPath (Join-Path 'dist' $parts[1]) -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($hash -ne $parts[0]) { Write-Host "MISMATCH $($parts[1])"; $bad++ }
+          }
+
+          if ($bad -ne 0) { throw "$bad file(s) do not match SHA256SUMS.txt." }
+
+      - name: Prove the build came from this commit
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'dist/*'
+
+      # ------------------------------------------------------------------ publish
+      - name: Keep the files
+        uses: actions/upload-artifact@v4
+        with:
+          name: ModeledThreads-${{ steps.version.outputs.version }}
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+
+          # Built as an array rather than a here-string: a here-string inside a
+          # YAML block scalar loses its terminator's position.
+          $notes = @(
+            'A modelled thread cut into any cylindrical face of an Inventor part:'
+            'external or internal, through or blind, for Inventor 2025, 2026 and'
+            '2027 with one DLL.'
+            ''
+            '## What to download'
+            ''
+            '- **ModeledThreads-Setup.exe** - installs it for your Windows account.'
+            '  No administrator rights, no runtime to install.'
+            '- **ModeledThreads-Deploy.zip** - the same add-in as a folder, with'
+            '  install.bat, for a machine where an installer is not wanted.'
+            '- **ModeledThreads-Tester-2025-2026.zip** - the add-in plus the 109'
+            '  automated checks and a report generator, for testing on your own'
+            '  Inventor.'
+            '- **SHA256SUMS.txt** and **ModeledThreads.cer** - see below.'
+            ''
+            '## Is it signed?'
+            ''
+            'Yes, with a certificate. Windows may still say the publisher is'
+            'unknown: the certificate is self-signed until the project is accepted'
+            'by SignPath''s free signing for open-source software. The signature'
+            'means the files are exactly what this workflow built, and that they'
+            'have not been altered since.'
+            ''
+            'To check, in PowerShell:'
+            ''
+            '```powershell'
+            'Get-FileHash .\ModeledThreads-Setup.exe -Algorithm SHA256'
+            'Get-AuthenticodeSignature .\ModeledThreads-Setup.exe | Format-List'
+            '```'
+            ''
+            'The hash must match the line in SHA256SUMS.txt. Every release also'
+            'has a build provenance attestation:'
+            ''
+            '```bash'
+            'gh attestation verify ModeledThreads-Setup.exe --repo ${{ github.repository }}'
+            '```'
+            ''
+            'Full instructions, including trusting the certificate locally and'
+            'moving to SignPath, are in `docs/SIGNING.md`.'
+          )
+
+          Set-Content -LiteralPath release-notes.md -Value $notes -Encoding UTF8
+
+          $arguments = @(
+            'release', 'create', "v$version",
+            'dist/ModeledThreads-Deploy.zip',
+            'dist/ModeledThreads-Tester-2025-2026.zip',
+            'dist/SHA256SUMS.txt',
+            'dist/ModeledThreads.cer'
+          )
+          if (Test-Path -LiteralPath 'dist/ModeledThreads-Setup.exe') {
+            $arguments += 'dist/ModeledThreads-Setup.exe'
+          }
+
+          & gh @arguments --title "Modeled Threads $version" --notes-file release-notes.md
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
