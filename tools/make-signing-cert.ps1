@@ -111,7 +111,7 @@ Write-Host 'Password for the .pfx (needed again, so keep it somewhere safe):'
 Write-Host ''
 Write-Host "  $Password"
 Write-Host ''
-Write-Host 'The hash and password are needed by the workflow. Set them with:'
+Write-Host 'The workflow needs the certificate and its password. Set them with:'
 Write-Host ''
 Write-Host "  gh secret set SIGNING_PFX_BASE64 < $base64File"
 Write-Host '  gh secret set SIGNING_PFX_PASSWORD'
