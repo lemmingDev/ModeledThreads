@@ -1,7 +1,7 @@
 # Modeled Threads for Autodesk Inventor 2025–2027
 
-[![Build](https://github.com/jwill872/ModeledThreads/actions/workflows/ci.yml/badge.svg)](https://github.com/jwill872/ModeledThreads/actions/workflows/ci.yml)
-[![Release](https://github.com/jwill872/ModeledThreads/actions/workflows/release.yml/badge.svg)](https://github.com/jwill872/ModeledThreads/actions/workflows/release.yml)
+[![Build](https://github.com/lemmingDev/ModeledThreads/actions/workflows/ci.yml/badge.svg)](https://github.com/lemmingDev/ModeledThreads/actions/workflows/ci.yml)
+[![Release](https://github.com/lemmingDev/ModeledThreads/actions/workflows/release.yml/badge.svg)](https://github.com/lemmingDev/ModeledThreads/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Cuts a **real, modelled thread** into any cylindrical face — a shaft, a boss, a
@@ -53,7 +53,7 @@ M10 × 1.5 in the hole, with the wall between them untouched.</i></p>
 
 ## Installing
 
-Download from the [latest release](https://github.com/jwill872/ModeledThreads/releases/latest):
+Download from the [latest release](https://github.com/lemmingDev/ModeledThreads/releases/latest):
 
 | File | What it is |
 |---|---|
