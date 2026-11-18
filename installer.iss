@@ -91,6 +91,6 @@ begin
   begin
     Bundle := ExpandConstant('{userappdata}\Autodesk\ApplicationPlugins\ModeledThreads.bundle');
     if DirExists(Bundle) then
-      RemoveDir(Bundle, True);
+      DelTree(Bundle, True, True, True);
   end;
 end;
