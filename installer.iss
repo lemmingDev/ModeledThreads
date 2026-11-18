@@ -46,10 +46,35 @@ Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Filename: "{app}\README.md"; Description: "Read the notes"; Flags: postinstall shellexec skipifsilent unchecked
 
 [Code]
+{ Inno Setup 6 has no process-list function, so ask tasklist and read what it
+  says. The image name is not localised, so this works on any Windows. }
+function InventorIsRunning(): Boolean;
+var
+  Output: string;
+  Lines: TArrayOfString;
+  I: Integer;
+  Code: Integer;
+begin
+  Result := False;
+  Output := ExpandConstant('{tmp}\inventor-running.txt');
+
+  if not Exec(ExpandConstant('{cmd}'),
+      '/c tasklist /FI "IMAGENAME eq Inventor.exe" /NH > "' + Output + '"',
+      '', SW_HIDE, ewWaitUntilTerminated, Code) then
+    Exit;
+
+  if LoadStringsFromFile(Output, Lines) then
+    for I := 0 to GetArrayLength(Lines) - 1 do
+      if Pos('Inventor.exe', Lines[I]) > 0 then
+        Result := True;
+
+  DeleteFile(Output);
+end;
+
 function InitializeSetup(): Boolean;
 begin
   Result := True;
-  if GetProcessIDs('Inventor.exe', ProcIds) <> 0 then
+  if InventorIsRunning() then
   begin
     MsgBox('Close Autodesk Inventor before installing.', mbError, MB_OK);
     Result := False;
