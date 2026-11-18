@@ -220,6 +220,12 @@ foreach ($file in Get-ChildItem -LiteralPath $OutputDir -File | Sort-Object Name
 
 Set-Content -LiteralPath (Join-Path $OutputDir 'SHA256SUMS.txt') -Value $lines -Encoding ASCII
 
+# Overwrite with LF endings: shasum -c on macOS and Linux reads the file as it
+# is, and a CRLF line leaves a stray \r on every file name.
+$sums = ($lines -join "`n") + "`n"
+[IO.File]::WriteAllText(
+    (Join-Path $OutputDir 'SHA256SUMS.txt'), $sums, [Text.Encoding]::ASCII)
+
 Remove-Item -LiteralPath $stage -Recurse -Force
 
 Step 'Done'
